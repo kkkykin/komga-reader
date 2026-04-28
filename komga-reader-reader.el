@@ -82,9 +82,9 @@ Set to 0 to disable preloading."
   "Open BOOK-ID at CHAPTER-INDEX (default 0).
 If a progression is saved on the server, resume from that position."
   (setq chapter-index (or chapter-index 0))
-  (let* ((reading-order (cdr (assoc 'readingOrder manifest)))
+  (let* ((reading-order (plist-get manifest :readingOrder))
          (total (length reading-order))
-         (title (or (cdr (assoc 'title (cdr (assoc 'metadata manifest)))) "Unknown"))
+         (title (or (plist-get (plist-get manifest :metadata) :title) "Unknown"))
          (buf (pop-to-buffer (format "*Reading: %s*" title))))
     (komga-reader-reader-mode)
     (komga-reader-reader--cache-clear)
@@ -98,9 +98,9 @@ If a progression is saved on the server, resume from that position."
        (when (buffer-live-p buf)
          (with-current-buffer buf
            (let* ((saved-pos (and progression
-                                  (let ((locator (cdr (assoc 'locator progression))))
-                                    (let ((locations (cdr (assoc 'locations locator))))
-                                      (cdr (assoc 'position locations))))))
+                                  (let ((locator (plist-get progression :locator)))
+                                    (let ((locations (plist-get locator :locations)))
+                                      (plist-get locations :position)))))
                   (saved-index (when (numberp saved-pos)
                                  (truncate saved-pos))))
              (when (and saved-index (>= saved-index 0) (< saved-index total))
@@ -112,7 +112,7 @@ If a progression is saved on the server, resume from that position."
   (when (and (>= index 0) (< index komga-reader-reader--total-chapters))
     (setq-local komga-reader-reader--chapter-index index)
     (let* ((chapter (nth index komga-reader-reader--reading-order))
-           (href (cdr (assoc 'href chapter)))
+           (href (plist-get chapter :href))
            (buf (current-buffer))
            (cached (komga-reader-reader--cache-get index)))
       (if cached
@@ -145,7 +145,7 @@ If a progression is saved on the server, resume from that position."
                   (let ((chapter (nth idx komga-reader-reader--reading-order)))
                     (komga-reader-get-chapter
                      komga-reader-reader--book-id
-                     (cdr (assoc 'href chapter))
+                     (plist-get chapter :href)
                      (lambda (html)
                        (when (buffer-live-p buf)
                          (with-current-buffer buf
@@ -182,7 +182,7 @@ If a progression is saved on the server, resume from that position."
   (when komga-reader-reader--book-id
     (let* ((chapter (nth komga-reader-reader--chapter-index
                          komga-reader-reader--reading-order))
-           (href (cdr (assoc 'href chapter))))
+           (href (plist-get chapter :href)))
       (komga-reader-update-progression
        komga-reader-reader--book-id
        komga-reader-reader--chapter-index

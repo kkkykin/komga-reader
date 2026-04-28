@@ -13,8 +13,6 @@
 
 ;;; Code:
 
-(require 'json)
-
 (defvar komga-reader-backend-impl nil
   "Plist registering backend functions.
 Keys: :list-books :get-manifest :get-chapter

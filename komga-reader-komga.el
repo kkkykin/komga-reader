@@ -12,8 +12,6 @@
 ;;; Code:
 
 (require 'komga-reader-backend)
-(require 'json)
-
 (defun komga-reader-komga--url ()
   (let ((url (getenv "KOMGA_URL")))
     (unless url (error "KOMGA_URL not set"))
@@ -29,16 +27,13 @@
                        (komga-reader-komga--url)
                        (or page 0) (or size 20)))
          (body (if query
-                   (json-encode `((fullTextSearch . ,query)))
+                   (json-serialize (list :fullTextSearch query))
                  "{}")))
     (komga-reader--curl
      "POST" url
      (lambda (code json)
        (if (= code 200)
-           (let ((json-object-type 'alist)
-                 (json-array-type 'list)
-                 (json-key-type 'symbol))
-             (funcall callback (json-read-from-string json)))
+           (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (error "Failed to list books: HTTP %d" code)))
      `(("X-API-Key" . ,(komga-reader-komga--api-key))
        ("Content-Type" . "application/json"))
@@ -51,10 +46,7 @@
      "GET" url
      (lambda (code json)
        (if (= code 200)
-           (let ((json-object-type 'alist)
-                 (json-array-type 'list)
-                 (json-key-type 'symbol))
-             (funcall callback (json-read-from-string json)))
+           (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (error "Failed to get manifest: HTTP %d" code)))
      `(("X-API-Key" . ,(komga-reader-komga--api-key))
        ("Accept" . "application/webpub+json")))))
@@ -75,10 +67,7 @@
      "GET" url
      (lambda (code json)
        (if (= code 200)
-           (let ((json-object-type 'alist)
-                 (json-array-type 'list)
-                 (json-key-type 'symbol))
-             (funcall callback (json-read-from-string json)))
+           (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (funcall callback nil)))
      `(("X-API-Key" . ,(komga-reader-komga--api-key))
        ("Accept" . "application/vnd.readium.progression+json")))))
@@ -91,16 +80,16 @@
                                  (regexp-quote (komga-reader-komga--url))
                                  book-id)
                          "" href))
-         (body (json-encode
-                `((device . ((id . "emacs-komga-reader")
-                             (name . "Emacs Komga Reader")))
-                  (locator . ((href . ,relative-href)
-                              (type . "application/xhtml+xml")
-                              (locations . ((position . ,position)
-                                            (progression . 0.0)
-                                            (totalProgression . 0.0)
-                                            (fragments . [])))))
-                  (modified . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t))))))
+         (body (json-serialize
+                (list :device (list :id "emacs-komga-reader"
+                                    :name "Emacs Komga Reader")
+                      :locator (list :href relative-href
+                                     :type "application/xhtml+xml"
+                                     :locations (list :position position
+                                                      :progression 0.0
+                                                      :totalProgression 0.0
+                                                      :fragments []))
+                      :modified (format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
     (komga-reader--curl
      "PUT" url
      (lambda (code body)
