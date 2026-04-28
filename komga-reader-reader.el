@@ -14,12 +14,36 @@
 (require 'shr)
 (require 'komga-reader-backend)
 
+(defgroup komga-reader nil
+  "Komga reader for Emacs."
+  :group 'comm)
+
+(defcustom komga-reader-preload-chapters-count 3
+  "Number of upcoming chapters to preload in background.
+Set to 0 to disable preloading."
+  :type 'integer
+  :group 'komga-reader)
+
 (defvar-local komga-reader-reader--book-id nil)
 (defvar-local komga-reader-reader--manifest nil)
 (defvar-local komga-reader-reader--chapter-index 0)
 (defvar-local komga-reader-reader--total-chapters 0)
-(defvar-local komga-reader-reader--next-html nil)
+(defvar-local komga-reader-reader--chapter-cache nil)
 (defvar-local komga-reader-reader--reading-order nil)
+
+(defun komga-reader-reader--cache-get (index)
+  "Get cached HTML for chapter INDEX, or nil."
+  (cdr (assoc index komga-reader-reader--chapter-cache)))
+
+(defun komga-reader-reader--cache-put (index html)
+  "Cache HTML for chapter INDEX."
+  (setq-local komga-reader-reader--chapter-cache
+              (cons (cons index html)
+                    (assoc-delete-all index komga-reader-reader--chapter-cache))))
+
+(defun komga-reader-reader--cache-clear ()
+  "Clear the chapter cache."
+  (setq-local komga-reader-reader--chapter-cache nil))
 
 (defvar komga-reader-reader-mode-map
   (let ((map (make-sparse-keymap)))
@@ -63,6 +87,7 @@ If a progression is saved on the server, resume from that position."
          (title (or (cdr (assoc 'title (cdr (assoc 'metadata manifest)))) "Unknown"))
          (buf (pop-to-buffer (format "*Reading: %s*" title))))
     (komga-reader-reader-mode)
+    (komga-reader-reader--cache-clear)
     (setq-local komga-reader-reader--book-id book-id)
     (setq-local komga-reader-reader--manifest manifest)
     (setq-local komga-reader-reader--reading-order reading-order)
@@ -88,34 +113,44 @@ If a progression is saved on the server, resume from that position."
     (setq-local komga-reader-reader--chapter-index index)
     (let* ((chapter (nth index komga-reader-reader--reading-order))
            (href (cdr (assoc 'href chapter)))
-           (buf (current-buffer)))
-      (message "Loading chapter %d..." (1+ index))
-      (komga-reader-get-chapter
-       komga-reader-reader--book-id href
-       (lambda (html)
-         (when (buffer-live-p buf)
-           (with-current-buffer buf
-             (komga-reader-reader--render-html html)
-             (komga-reader-reader--sync-progression)
-             ;; Preload next chapter
-             (when (< (1+ index) komga-reader-reader--total-chapters)
-               (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload (1+ index))))))))))
+           (buf (current-buffer))
+           (cached (komga-reader-reader--cache-get index)))
+      (if cached
+          (progn
+            (komga-reader-reader--render-html cached)
+            (komga-reader-reader--sync-progression)
+            (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead))
+        (message "Loading chapter %d..." (1+ index))
+        (komga-reader-get-chapter
+         komga-reader-reader--book-id href
+         (lambda (html)
+           (when (buffer-live-p buf)
+             (with-current-buffer buf
+               (komga-reader-reader--render-html html)
+               (komga-reader-reader--sync-progression)
+               (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead)))))))))
 
-(defun komga-reader-reader--preload (index)
-  "Preload chapter INDEX in background."
+(defun komga-reader-reader--preload-ahead ()
+  "Preload upcoming chapters in background."
   (when (and komga-reader-reader--book-id
-             (< index komga-reader-reader--total-chapters))
-    (let* ((chapter (nth index komga-reader-reader--reading-order))
-           (href (cdr (assoc 'href chapter)))
-           (buf (current-buffer)))
-      (condition-case nil
-          (komga-reader-get-chapter
-           komga-reader-reader--book-id href
-           (lambda (html)
-             (when (buffer-live-p buf)
-               (with-current-buffer buf
-                 (setq-local komga-reader-reader--next-html html)))))
-        (error nil)))))
+             (> komga-reader-preload-chapters-count 0))
+    (let ((current komga-reader-reader--chapter-index)
+          (total komga-reader-reader--total-chapters)
+          (buf (current-buffer)))
+      (dotimes (i komga-reader-preload-chapters-count)
+        (let ((idx (+ current 1 i)))
+          (when (< idx total)
+            (unless (komga-reader-reader--cache-get idx)
+              (condition-case nil
+                  (let ((chapter (nth idx komga-reader-reader--reading-order)))
+                    (komga-reader-get-chapter
+                     komga-reader-reader--book-id
+                     (cdr (assoc 'href chapter))
+                     (lambda (html)
+                       (when (buffer-live-p buf)
+                         (with-current-buffer buf
+                           (komga-reader-reader--cache-put idx html))))))
+                (error nil)))))))))
 
 (defun komga-reader-reader-next-chapter ()
   "Go to next chapter."
@@ -123,15 +158,15 @@ If a progression is saved on the server, resume from that position."
   (let ((next (1+ komga-reader-reader--chapter-index)))
     (if (>= next komga-reader-reader--total-chapters)
         (message "Last chapter")
-      (if komga-reader-reader--next-html
-          (progn
-            (setq-local komga-reader-reader--chapter-index next)
-            (komga-reader-reader--render-html komga-reader-reader--next-html)
-            (setq-local komga-reader-reader--next-html nil)
-            (komga-reader-reader--sync-progression)
-            (when (< (1+ next) komga-reader-reader--total-chapters)
-              (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload (1+ next))))
-        (komga-reader-reader--load-chapter next)))))
+      (let ((cached (komga-reader-reader--cache-get next)))
+        (if cached
+            (progn
+              (setq-local komga-reader-reader--chapter-index next)
+              (komga-reader-reader--render-html cached)
+              (komga-reader-reader--cache-put next nil)
+              (komga-reader-reader--sync-progression)
+              (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead))
+          (komga-reader-reader--load-chapter next))))))
 
 (defun komga-reader-reader-prev-chapter ()
   "Go to previous chapter."
@@ -139,7 +174,7 @@ If a progression is saved on the server, resume from that position."
   (let ((prev (1- komga-reader-reader--chapter-index)))
     (if (< prev 0)
         (message "First chapter")
-      (setq-local komga-reader-reader--next-html nil)
+      (komga-reader-reader--cache-clear)
       (komga-reader-reader--load-chapter prev))))
 
 (defun komga-reader-reader--sync-progression ()

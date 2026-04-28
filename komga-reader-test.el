@@ -15,6 +15,7 @@
 (require 'cl-lib)
 (require 'komga-reader-backend)
 (require 'komga-reader-komga)
+(require 'komga-reader-reader)
 
 ;; ---------------------------------------------------------------------------
 ;; Low-level async process tests
@@ -123,12 +124,14 @@
 ;; Reader cache / preload tests
 ;; ---------------------------------------------------------------------------
 
-(ert-deftest komga-reader-test-next-html-cache ()
-  "Test that preloaded HTML is stored in buffer-local variable."
+(ert-deftest komga-reader-test-chapter-cache ()
+  "Test that chapter cache stores and retrieves HTML correctly."
   (with-temp-buffer
-    (setq-local komga-reader-reader--next-html nil)
-    (setq-local komga-reader-reader--next-html "<html>cached</html>")
-    (should (string= komga-reader-reader--next-html "<html>cached</html>"))))
+    (setq-local komga-reader-reader--chapter-cache nil)
+    (komga-reader-reader--cache-put 5 "<html>cached</html>")
+    (should (string= (komga-reader-reader--cache-get 5) "<html>cached</html>"))
+    (komga-reader-reader--cache-put 5 nil)
+    (should (null (komga-reader-reader--cache-get 5)))))
 
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here
