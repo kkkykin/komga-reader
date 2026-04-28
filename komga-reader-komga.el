@@ -12,15 +12,34 @@
 ;;; Code:
 
 (require 'komga-reader-backend)
+
+(defcustom komga-reader-komga-url nil
+  "Base URL of the Komga server."
+  :type '(choice (string :tag "URL")
+                 (const :tag "Unset" nil))
+  :group 'komga-reader)
+
+(defcustom komga-reader-komga-api-key nil
+  "API key for authenticating with the Komga server."
+  :type '(choice (string :tag "API Key")
+                 (const :tag "Unset" nil))
+  :group 'komga-reader)
+
 (defun komga-reader-komga--url ()
-  (let ((url (getenv "KOMGA_URL")))
-    (unless url (error "KOMGA_URL not set"))
-    url))
+  "Return the Komga server URL.
+Prefers `komga-reader-komga-url', falling back to KOMGA_URL env var."
+  (or komga-reader-komga-url
+      (let ((url (getenv "KOMGA_URL")))
+        (unless url (error "KOMGA_URL not set and `komga-reader-komga-url' is nil"))
+        url)))
 
 (defun komga-reader-komga--api-key ()
-  (let ((key (getenv "KOMGA_API_KEY")))
-    (unless key (error "KOMGA_API_KEY not set"))
-    key))
+  "Return the Komga API key.
+Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
+  (or komga-reader-komga-api-key
+      (let ((key (getenv "KOMGA_API_KEY")))
+        (unless key (error "KOMGA_API_KEY not set and `komga-reader-komga-api-key' is nil"))
+        key)))
 
 (defun komga-reader-komga-list-books (callback &optional query page size)
   (let* ((url (format "%s/api/v1/books/list?page=%d&size=%d"
