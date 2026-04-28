@@ -61,22 +61,26 @@ If a progression is saved on the server, resume from that position."
   (let* ((reading-order (cdr (assoc 'readingOrder manifest)))
          (total (length reading-order))
          (title (or (cdr (assoc 'title (cdr (assoc 'metadata manifest)))) "Unknown"))
-         (progression (komga-reader-get-progression book-id))
-         (saved-pos (and progression
-                         (let ((locator (cdr (assoc 'locator progression))))
-                           (let ((locations (cdr (assoc 'locations locator))))
-                             (cdr (assoc 'position locations))))))
-         (saved-index (when (numberp saved-pos)
-                        (truncate saved-pos))))
-    (when (and saved-index (>= saved-index 0) (< saved-index total))
-      (setq chapter-index saved-index))
-    (pop-to-buffer (format "*Reading: %s*" title))
+         (buf (pop-to-buffer (format "*Reading: %s*" title))))
     (komga-reader-reader-mode)
     (setq-local komga-reader-reader--book-id book-id)
     (setq-local komga-reader-reader--manifest manifest)
     (setq-local komga-reader-reader--reading-order reading-order)
     (setq-local komga-reader-reader--total-chapters total)
-    (komga-reader-reader--load-chapter chapter-index)))
+    (komga-reader-get-progression
+     book-id
+     (lambda (progression)
+       (when (buffer-live-p buf)
+         (with-current-buffer buf
+           (let* ((saved-pos (and progression
+                                  (let ((locator (cdr (assoc 'locator progression))))
+                                    (let ((locations (cdr (assoc 'locations locator))))
+                                      (cdr (assoc 'position locations))))))
+                  (saved-index (when (numberp saved-pos)
+                                 (truncate saved-pos))))
+             (when (and saved-index (>= saved-index 0) (< saved-index total))
+               (setq chapter-index saved-index))
+             (komga-reader-reader--load-chapter chapter-index))))))))
 
 (defun komga-reader-reader--load-chapter (index)
   "Load chapter at INDEX."
@@ -84,22 +88,33 @@ If a progression is saved on the server, resume from that position."
     (setq-local komga-reader-reader--chapter-index index)
     (let* ((chapter (nth index komga-reader-reader--reading-order))
            (href (cdr (assoc 'href chapter)))
-           (html (komga-reader-get-chapter komga-reader-reader--book-id href)))
-      (komga-reader-reader--render-html html)
-      (komga-reader-reader--sync-progression)
-      ;; Preload next chapter
-      (when (< (1+ index) komga-reader-reader--total-chapters)
-        (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload (1+ index))))))
+           (buf (current-buffer)))
+      (message "Loading chapter %d..." (1+ index))
+      (komga-reader-get-chapter
+       komga-reader-reader--book-id href
+       (lambda (html)
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (komga-reader-reader--render-html html)
+             (komga-reader-reader--sync-progression)
+             ;; Preload next chapter
+             (when (< (1+ index) komga-reader-reader--total-chapters)
+               (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload (1+ index))))))))))
 
 (defun komga-reader-reader--preload (index)
   "Preload chapter INDEX in background."
   (when (and komga-reader-reader--book-id
              (< index komga-reader-reader--total-chapters))
     (let* ((chapter (nth index komga-reader-reader--reading-order))
-           (href (cdr (assoc 'href chapter))))
+           (href (cdr (assoc 'href chapter)))
+           (buf (current-buffer)))
       (condition-case nil
-          (let ((html (komga-reader-get-chapter komga-reader-reader--book-id href)))
-            (setq-local komga-reader-reader--next-html html))
+          (komga-reader-get-chapter
+           komga-reader-reader--book-id href
+           (lambda (html)
+             (when (buffer-live-p buf)
+               (with-current-buffer buf
+                 (setq-local komga-reader-reader--next-html html)))))
         (error nil)))))
 
 (defun komga-reader-reader-next-chapter ()
@@ -133,9 +148,11 @@ If a progression is saved on the server, resume from that position."
     (let* ((chapter (nth komga-reader-reader--chapter-index
                          komga-reader-reader--reading-order))
            (href (cdr (assoc 'href chapter))))
-      (komga-reader-update-progression komga-reader-reader--book-id
-                                       komga-reader-reader--chapter-index
-                                       href))))
+      (komga-reader-update-progression
+       komga-reader-reader--book-id
+       komga-reader-reader--chapter-index
+       href
+       (lambda (_status _body) nil)))))
 
 (defun komga-reader-reader-quit ()
   "Quit reader and sync progression."

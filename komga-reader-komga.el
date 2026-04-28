@@ -24,68 +24,68 @@
     (unless key (error "KOMGA_API_KEY not set"))
     key))
 
-(defun komga-reader-komga-list-books (&optional query page size)
+(defun komga-reader-komga-list-books (callback &optional query page size)
   (let* ((url (format "%s/api/v1/books/list?page=%d&size=%d"
                        (komga-reader-komga--url)
                        (or page 0) (or size 20)))
          (body (if query
                    (json-encode `((fullTextSearch . ,query)))
-                 "{}"))
-         (result (komga-reader--curl "POST" url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key))
-                                       ("Content-Type" . "application/json"))
-                                     body))
-         (code (car result))
-         (json (cdr result)))
-    (unless (= code 200)
-      (error "Failed to list books: HTTP %d" code))
-    (let ((json-object-type 'alist)
-          (json-array-type 'list)
-          (json-key-type 'symbol))
-      (json-read-from-string json))))
+                 "{}")))
+    (komga-reader--curl
+     "POST" url
+     (lambda (code json)
+       (if (= code 200)
+           (let ((json-object-type 'alist)
+                 (json-array-type 'list)
+                 (json-key-type 'symbol))
+             (funcall callback (json-read-from-string json)))
+         (error "Failed to list books: HTTP %d" code)))
+     `(("X-API-Key" . ,(komga-reader-komga--api-key))
+       ("Content-Type" . "application/json"))
+     body)))
 
-(defun komga-reader-komga-get-manifest (book-id)
+(defun komga-reader-komga-get-manifest (book-id callback)
   (let* ((url (format "%s/api/v1/books/%s/manifest/epub"
-                       (komga-reader-komga--url) book-id))
-         (result (komga-reader--curl "GET" url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key))
-                                       ("Accept" . "application/webpub+json"))))
-         (code (car result))
-         (json (cdr result)))
-    (unless (= code 200)
-      (error "Failed to get manifest: HTTP %d" code))
-    (let ((json-object-type 'alist)
-          (json-array-type 'list)
-          (json-key-type 'symbol))
-      (json-read-from-string json))))
+                       (komga-reader-komga--url) book-id)))
+    (komga-reader--curl
+     "GET" url
+     (lambda (code json)
+       (if (= code 200)
+           (let ((json-object-type 'alist)
+                 (json-array-type 'list)
+                 (json-key-type 'symbol))
+             (funcall callback (json-read-from-string json)))
+         (error "Failed to get manifest: HTTP %d" code)))
+     `(("X-API-Key" . ,(komga-reader-komga--api-key))
+       ("Accept" . "application/webpub+json")))))
 
-(defun komga-reader-komga-get-chapter (_book-id resource-url)
-  (let* ((result (komga-reader--curl "GET" resource-url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key)))))
-         (code (car result))
-         (body (cdr result)))
-    (unless (= code 200)
-      (error "Failed to get chapter: HTTP %d" code))
-    body))
+(defun komga-reader-komga-get-chapter (_book-id resource-url callback)
+  (komga-reader--curl
+   "GET" resource-url
+   (lambda (code body)
+     (if (= code 200)
+         (funcall callback body)
+       (error "Failed to get chapter: HTTP %d" code)))
+   `(("X-API-Key" . ,(komga-reader-komga--api-key)))))
 
-(defun komga-reader-komga-get-progression (book-id)
+(defun komga-reader-komga-get-progression (book-id callback)
+  (let ((url (format "%s/api/v1/books/%s/progression"
+                     (komga-reader-komga--url) book-id)))
+    (komga-reader--curl
+     "GET" url
+     (lambda (code json)
+       (if (= code 200)
+           (let ((json-object-type 'alist)
+                 (json-array-type 'list)
+                 (json-key-type 'symbol))
+             (funcall callback (json-read-from-string json)))
+         (funcall callback nil)))
+     `(("X-API-Key" . ,(komga-reader-komga--api-key))
+       ("Accept" . "application/vnd.readium.progression+json")))))
+
+(defun komga-reader-komga-update-progression (book-id position href callback)
   (let* ((url (format "%s/api/v1/books/%s/progression"
-                       (komga-reader-komga--url) book-id))
-         (result (komga-reader--curl "GET" url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key))
-                                       ("Accept" . "application/vnd.readium.progression+json"))))
-         (code (car result))
-         (json (cdr result)))
-    (if (= code 200)
-        (let ((json-object-type 'alist)
-              (json-array-type 'list)
-              (json-key-type 'symbol))
-          (json-read-from-string json))
-      nil)))
-
-(defun komga-reader-komga-update-progression (book-id position href)
-  (let* ((url (format "%s/api/v1/books/%s/progression"
-                       (komga-reader-komga--url) book-id))
+                      (komga-reader-komga--url) book-id))
          (relative-href (replace-regexp-in-string
                          (format "^%s/api/v1/books/%s/resource/"
                                  (regexp-quote (komga-reader-komga--url))
@@ -100,14 +100,17 @@
                                             (progression . 0.0)
                                             (totalProgression . 0.0)
                                             (fragments . [])))))
-                  (modified . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
-         (result (komga-reader--curl "PUT" url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key))
-                                       ("Content-Type" . "application/json"))
-                                     body))
-         (code (car result)))
-    (unless (= code 204)
-      (message "Warning: failed to update progression: HTTP %d" code))))
+                  (modified . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t))))))
+    (komga-reader--curl
+     "PUT" url
+     (lambda (code body)
+       (unless (= code 204)
+         (message "Warning: failed to update progression: HTTP %d" code))
+       (when callback
+         (funcall callback code body)))
+     `(("X-API-Key" . ,(komga-reader-komga--api-key))
+       ("Content-Type" . "application/json"))
+     body)))
 
 ;;;###autoload
 (defun komga-reader-komga-init ()
