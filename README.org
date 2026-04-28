@@ -1,0 +1,133 @@
+#+title: komga-reader
+#+author: 
+
+Browse and read books from a [[https://komga.org][Komga]] server inside Emacs.
+
+* Features
+
+- 📚 *Library browser* — Tabulated list of all books with title, author, page count, read progress, and last-read timestamp.
+- 📖 *Table of contents* — Quick chapter navigation for each book.
+- 📄 *HTML reader* — Renders book chapters with =shr= (no images, clean text).
+- 🔄 *Progress sync* — Automatically saves and resumes your reading position via Komga's progression API.
+- ⚡ *Preloading* — Upcoming chapters are fetched in the background for instant page turns.
+- 🔧 *Fully configurable* — Server URL and API key are =defcustom= variables (with optional environment-variable fallback).
+
+* Installation
+
+** Requirements
+
+- Emacs 29.1+ (uses =json-serialize= / =json-parse-string=)
+- A running [[https://komga.org][Komga]] server
+- =curl= (used for HTTP requests)
+
+** Manual
+
+#+begin_src bash
+git clone https://github.com/yourusername/komga-reader.git
+# Add to load-path, then:
+#+end_src
+
+#+begin_src elisp
+(add-to-list 'load-path "/path/to/komga-reader")
+(require 'komga-reader)
+#+end_src
+
+** with ~use-package~
+
+#+begin_src elisp
+(use-package komga-reader
+  :load-path "~/path/to/komga-reader"
+  :custom
+  (komga-reader-komga-url "http://localhost:25600")
+  (komga-reader-komga-api-key "YOUR_API_KEY")
+  :commands (komga-reader))
+#+end_src
+
+* Configuration
+
+Two custom variables are required to connect to your Komga server:
+
+| Variable                      | Type    | Description                          | Fallback            |
+|-------------------------------+---------+--------------------------------------+---------------------|
+| ~komga-reader-komga-url~      | string  | Base URL of the Komga server         | ~KOMGA_URL~ env var |
+| ~komga-reader-komga-api-key~  | string  | API key for authentication           | ~KOMGA_API_KEY~ env |
+
+Set them in your init file:
+
+#+begin_src elisp
+(setq komga-reader-komga-url "https://komga.example.com")
+(setq komga-reader-komga-api-key "xxx-yyy-zzz")
+#+end_src
+
+Or interactively via ~M-x customize-group RET komga-reader RET~.
+
+Optional settings:
+
+| Variable                              | Default | Description                           |
+|---------------------------------------+---------+---------------------------------------|
+| ~komga-reader-preload-chapters-count~ | 3       | Number of upcoming chapters to cache  |
+
+* Usage
+
+** Opening the library
+
+Run ~M-x komga-reader RET~ to open the book list.
+
+** Book list keys (~komga-reader-booklist-mode~)
+
+| Key     | Action                              |
+|---------+-------------------------------------|
+| ~RET~   | Open selected book at saved progress|
+| ~t~     | Open table of contents for book     |
+| ~q~     | Quit window                         |
+
+** Reader keys (~komga-reader-reader-mode~)
+
+| Key         | Action                  |
+|-------------+-------------------------|
+| ~n~ / ~SPC~ | Next chapter            |
+| ~p~ / ~DEL~ | Previous chapter        |
+| ~j~ / ~→~   | Next chapter            |
+| ~k~ / ~←~   | Previous chapter        |
+| ~q~         | Quit and sync progress  |
+
+** Table of contents keys (~komga-reader-toc-mode~)
+
+| Key   | Action              |
+|-------+---------------------|
+| ~RET~ | Open chapter        |
+| ~q~   | Quit window         |
+
+* Architecture
+
+#+begin_example
+komga-reader.el          — UI: book list, TOC, entry point
+komga-reader-backend.el  — Async curl abstraction + backend dispatch
+komga-reader-komga.el    — Komga REST API implementation
+komga-reader-reader.el   — Chapter rendering + reader mode
+#+end_example
+
+Backends register themselves by setting ~komga-reader-backend-impl~. Currently only Komga is implemented, but the abstraction allows other servers that expose a compatible API.
+
+* Development
+
+** Running tests
+
+#+begin_src bash
+emacs -batch -L . -l ert -l komga-reader-test \
+  --eval '(ert-run-tests-batch-and-exit)'
+#+end_src
+
+** Byte-compilation
+
+#+begin_src bash
+emacs -batch -L . -f batch-byte-compile \
+  komga-reader.el komga-reader-backend.el \
+  komga-reader-komga.el komga-reader-reader.el
+#+end_src
+
+All files must compile with zero warnings.
+
+* License
+
+MIT
