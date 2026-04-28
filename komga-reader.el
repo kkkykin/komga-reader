@@ -16,6 +16,9 @@
 (require 'komga-reader-backend)
 (require 'komga-reader-komga)
 
+(declare-function komga-reader-reader-open "komga-reader-reader"
+                  (book-id manifest &optional chapter-index))
+
 (defvar-local komga-reader--toc-book-id nil)
 (defvar-local komga-reader--toc-reading-order nil)
 (defvar-local komga-reader--toc-manifest nil)
@@ -60,8 +63,16 @@
 (defvar komga-reader-booklist-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") #'komga-reader--booklist-select)
+    (define-key map (kbd "t") #'komga-reader--booklist-open-toc)
     (define-key map (kbd "q") #'quit-window)
     map))
+
+(defun komga-reader--booklist-open-toc ()
+  "Open the table of contents for the selected book."
+  (interactive)
+  (let ((id (tabulated-list-get-id)))
+    (when id
+      (komga-reader--open-toc id))))
 
 (define-derived-mode komga-reader-booklist-mode tabulated-list-mode "Komga-Books"
   "Major mode for listing Komga books."
@@ -74,10 +85,13 @@
   (tabulated-list-init-header))
 
 (defun komga-reader--booklist-select ()
+  "Open the selected book at its saved progress, or chapter 0."
   (interactive)
   (let ((id (tabulated-list-get-id)))
     (when id
-      (komga-reader--open-toc id))))
+      (let ((manifest (komga-reader-get-manifest id)))
+        (require 'komga-reader-reader)
+        (komga-reader-reader-open id manifest)))))
 
 (defun komga-reader--open-toc (book-id)
   (let* ((manifest (komga-reader-get-manifest book-id))

@@ -55,7 +55,8 @@
     (goto-char (point-min))))
 
 (defun komga-reader-reader-open (book-id manifest &optional chapter-index)
-  "Open BOOK-ID at CHAPTER-INDEX (default 0)."
+  "Open BOOK-ID at CHAPTER-INDEX (default 0).
+If a progression is saved on the server, resume from that position."
   (setq chapter-index (or chapter-index 0))
   (let* ((reading-order (cdr (assoc 'readingOrder manifest)))
          (total (length reading-order))
@@ -64,10 +65,11 @@
          (saved-pos (and progression
                          (let ((locator (cdr (assoc 'locator progression))))
                            (let ((locations (cdr (assoc 'locations locator))))
-                             (cdr (assoc 'position locations)))))))
-    (when (and saved-pos (integerp saved-pos)
-               (>= saved-pos 0) (< saved-pos total))
-      (setq chapter-index saved-pos))
+                             (cdr (assoc 'position locations))))))
+         (saved-index (when (numberp saved-pos)
+                        (truncate saved-pos))))
+    (when (and saved-index (>= saved-index 0) (< saved-index total))
+      (setq chapter-index saved-index))
     (pop-to-buffer (format "*Reading: %s*" title))
     (komga-reader-reader-mode)
     (setq-local komga-reader-reader--book-id book-id)

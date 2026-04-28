@@ -72,7 +72,8 @@
   (let* ((url (format "%s/api/v1/books/%s/progression"
                        (komga-reader-komga--url) book-id))
          (result (komga-reader--curl "GET" url
-                                     `(("X-API-Key" . ,(komga-reader-komga--api-key)))))
+                                     `(("X-API-Key" . ,(komga-reader-komga--api-key))
+                                       ("Accept" . "application/vnd.readium.progression+json"))))
          (code (car result))
          (json (cdr result)))
     (if (= code 200)
