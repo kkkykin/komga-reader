@@ -41,8 +41,20 @@
              (authors (cdr (assoc 'authors metadata)))
              (author (or (car authors) "Unknown"))
              (media (cdr (assoc 'media book)))
-             (pages (or (cdr (assoc 'pagesCount media)) 0)))
-        (push (list id (vector title (format "%s" author) (format "%d" pages) id)) entries)))
+             (pages (or (cdr (assoc 'pagesCount media)) 0))
+             (read-progress (cdr (assoc 'readProgress book)))
+             (progress-str
+              (let ((page (and read-progress (cdr (assoc 'page read-progress)))))
+                (if (and page (> pages 0))
+                    (let ((pct (min 100 (round (* 100.0 (/ (float (1+ page)) pages))))))
+                      (if (>= pct 100) "Done" (format "%d%%" pct)))
+                  "-")))
+             (last-modified (and read-progress (cdr (assoc 'lastModified read-progress))))
+             (last-read-str
+              (if last-modified
+                  (format-time-string "%Y-%m-%d %H:%M" (date-to-time last-modified))
+                "-")))
+        (push (list id (vector title (format "%s" author) (format "%d" pages) progress-str last-read-str)) entries)))
     (nreverse entries)))
 
 (defvar komga-reader-booklist-mode-map
@@ -53,11 +65,12 @@
 
 (define-derived-mode komga-reader-booklist-mode tabulated-list-mode "Komga-Books"
   "Major mode for listing Komga books."
-  (setq tabulated-list-format [("Title" 40 t)
-                               ("Author" 20 t)
-                               ("Pages" 8 t)
-                               ("ID" 20 t)])
-  (setq tabulated-list-sort-key (cons "Title" nil))
+  (setq tabulated-list-format [("Title" 35 t)
+                               ("Author" 18 t)
+                               ("Pages" 7 t)
+                               ("Progress" 10 t)
+                               ("Last Read" 20 t)])
+  (setq tabulated-list-sort-key (cons "Last Read" t))
   (tabulated-list-init-header))
 
 (defun komga-reader--booklist-select ()
