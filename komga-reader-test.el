@@ -218,6 +218,21 @@
     (should (null (komga-reader--booklist-get-cache)))))
 
 ;; ---------------------------------------------------------------------------
+;; Reader keymap / revert-buffer / toc tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-reader-keymap-t-open-toc ()
+  "Test that t is bound to komga-reader-reader-open-toc in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "t"))
+              #'komga-reader-reader-open-toc)))
+
+(ert-deftest komga-reader-test-reader-revert-buffer-function ()
+  "Test that revert-buffer-function is set in reader mode."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (should (eq revert-buffer-function #'komga-reader-reader--refresh))))
+
+;; ---------------------------------------------------------------------------
 ;; Revert-buffer hook test
 ;; ---------------------------------------------------------------------------
 
