@@ -16,12 +16,26 @@
 (require 'komga-reader-backend)
 (require 'komga-reader-komga)
 
+(when (version<= "29.1" emacs-version)
+  (require 'multisession))
+
 (declare-function komga-reader-reader-open "komga-reader-reader"
                   (book-id manifest &optional chapter-index))
 
 (defvar-local komga-reader--toc-book-id nil)
 (defvar-local komga-reader--toc-reading-order nil)
 (defvar-local komga-reader--toc-manifest nil)
+(defvar-local komga-reader--booklist-from-cache nil)
+
+(defcustom komga-reader-booklist-cache-ttl 300
+  "Time-to-live in seconds for the book list multisession cache.
+Set to 0 to disable caching."
+  :type 'integer
+  :group 'komga-reader)
+
+(when (featurep 'multisession)
+  (define-multisession-variable komga-reader--booklist-cache nil
+    "Cached book list entries for komga-reader."))
 
 ;;;###autoload
 (defun komga-reader ()
@@ -32,12 +46,20 @@
     (komga-reader-booklist-mode)
     (setq tabulated-list-entries nil)
     (tabulated-list-print t)
+    ;; Try to load from multisession cache first
+    (let ((cached (komga-reader--booklist-get-cache)))
+      (when cached
+        (setq-local komga-reader--booklist-from-cache t)
+        (setq tabulated-list-entries cached)
+        (tabulated-list-print t)
+        (message "Showing cached book list (press g to refresh)")))
     (message "Loading books...")
     (komga-reader--fetch-book-entries
      (lambda (entries)
        (when (buffer-live-p buf)
          (with-current-buffer buf
            (when (eq major-mode 'komga-reader-booklist-mode)
+             (setq-local komga-reader--booklist-from-cache nil)
              (setq tabulated-list-entries entries)
              (tabulated-list-print t))))))))
 
@@ -67,7 +89,28 @@
                      (format-time-string "%Y-%m-%d %H:%M" (date-to-time last-modified))
                    "-")))
            (push (list id (vector title (format "%s" author) (format "%d" pages) progress-str last-read-str)) entries)))
-       (funcall callback (nreverse entries))))))
+       (let ((entries (nreverse entries)))
+         (komga-reader--booklist-put-cache entries)
+         (funcall callback entries))))))
+
+(defun komga-reader--booklist-get-cache ()
+  "Return cached book list entries if not expired, else nil."
+  (when (and (featurep 'multisession) (boundp 'komga-reader--booklist-cache)
+             (> komga-reader-booklist-cache-ttl 0))
+    (let* ((data (multisession-value 'komga-reader--booklist-cache))
+           (timestamp (plist-get data :timestamp))
+           (entries (plist-get data :entries)))
+      (when (and timestamp entries
+                 (< (float-time (time-subtract (current-time) timestamp))
+                    komga-reader-booklist-cache-ttl))
+        entries))))
+
+(defun komga-reader--booklist-put-cache (entries)
+  "Store book list ENTRIES in multisession cache."
+  (when (and (featurep 'multisession) (boundp 'komga-reader--booklist-cache)
+             (> komga-reader-booklist-cache-ttl 0))
+    (setf (multisession-value 'komga-reader--booklist-cache)
+          (list :timestamp (current-time) :entries entries))))
 
 (defvar komga-reader-booklist-mode-map
   (let ((map (make-sparse-keymap)))
@@ -110,6 +153,8 @@
   (let ((id (tabulated-list-get-id))
         (buf (current-buffer)))
     (when id
+      (when (buffer-local-value 'komga-reader--booklist-from-cache buf)
+        (message "Note: book list is from cache, progress may not be up-to-date"))
       (message "Loading manifest...")
       (komga-reader-get-manifest
        id
