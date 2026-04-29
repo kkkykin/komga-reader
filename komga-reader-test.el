@@ -19,6 +19,34 @@
 (require 'komga-reader)
 
 ;; ---------------------------------------------------------------------------
+;; Debug logging tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-debug-log-nil ()
+  "Test that debug log produces no output when debug is nil."
+  (let ((komga-reader-debug nil)
+        (logged nil))
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args)
+                 (setq logged (apply #'format fmt args)))))
+      (komga-reader--debug-log "test %s" "message")
+      (should (null logged)))))
+
+(ert-deftest komga-reader-test-debug-log-non-nil ()
+  "Test that debug log produces output when debug is non-nil."
+  (let ((komga-reader-debug t)
+        (logged nil))
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args)
+                 (setq logged (apply #'format fmt args)))))
+      (komga-reader--debug-log "test %s" "message")
+      (should (string= logged "[komga-reader] test message")))))
+
+(ert-deftest komga-reader-test-debug-custom-variable ()
+  "Test that komga-reader-debug is a boolean custom variable."
+  (should (booleanp komga-reader-debug)))
+
+;; ---------------------------------------------------------------------------
 ;; Low-level async process tests
 ;; ---------------------------------------------------------------------------
 

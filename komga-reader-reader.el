@@ -87,6 +87,7 @@ Set to 0 to disable preloading."
   "Open BOOK-ID at CHAPTER-INDEX (default 0).
 If a progression is saved on the server, resume from that position."
   (setq chapter-index (or chapter-index 0))
+  (komga-reader--debug-log "reader-open book-id=%s chapter-index=%s" book-id chapter-index)
   (komga-reader--record-last-read-book book-id)
   (let* ((reading-order (plist-get manifest :readingOrder))
          (total (length reading-order))
@@ -110,12 +111,14 @@ If a progression is saved on the server, resume from that position."
                   (saved-index (when (numberp saved-pos)
                                  (truncate saved-pos))))
              (when (and saved-index (>= saved-index 0) (< saved-index total))
+               (komga-reader--debug-log "reader-open: resuming from server progress chapter %d" saved-index)
                (setq chapter-index saved-index))
              (komga-reader-reader--load-chapter chapter-index))))))))
 
 (defun komga-reader-reader--load-chapter (index)
   "Load chapter at INDEX."
   (when (and (>= index 0) (< index komga-reader-reader--total-chapters))
+    (komga-reader--debug-log "load-chapter index=%d (total=%d)" index komga-reader-reader--total-chapters)
     (setq-local komga-reader-reader--chapter-index index)
     (let* ((chapter (nth index komga-reader-reader--reading-order))
            (href (plist-get chapter :href))
@@ -123,6 +126,7 @@ If a progression is saved on the server, resume from that position."
            (cached (komga-reader-reader--cache-get index)))
       (if cached
           (progn
+            (komga-reader--debug-log "load-chapter: using cached chapter %d" index)
             (komga-reader-reader--render-html cached)
             (komga-reader-reader--sync-progression)
             (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead))
@@ -132,6 +136,7 @@ If a progression is saved on the server, resume from that position."
          (lambda (html)
            (when (buffer-live-p buf)
              (with-current-buffer buf
+               (komga-reader--debug-log "load-chapter: fetched chapter %d (%d bytes)" index (length html))
                (komga-reader-reader--render-html html)
                (komga-reader-reader--sync-progression)
                (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead)))))))))
@@ -143,18 +148,21 @@ If a progression is saved on the server, resume from that position."
     (let ((current komga-reader-reader--chapter-index)
           (total komga-reader-reader--total-chapters)
           (buf (current-buffer)))
+      (komga-reader--debug-log "preload-ahead: current=%d count=%d" current komga-reader-preload-chapters-count)
       (dotimes (i komga-reader-preload-chapters-count)
         (let ((idx (+ current 1 i)))
           (when (< idx total)
             (unless (komga-reader-reader--cache-get idx)
               (condition-case nil
                   (let ((chapter (nth idx komga-reader-reader--reading-order)))
+                    (komga-reader--debug-log "preload-ahead: fetching chapter %d" idx)
                     (komga-reader-get-chapter
                      komga-reader-reader--book-id
                      (plist-get chapter :href)
                      (lambda (html)
                        (when (buffer-live-p buf)
                          (with-current-buffer buf
+                           (komga-reader--debug-log "preload-ahead: cached chapter %d (%d bytes)" idx (length html))
                            (komga-reader-reader--cache-put idx html))))))
                 (error nil)))))))))
 
@@ -164,6 +172,7 @@ If a progression is saved on the server, resume from that position."
   (let ((next (1+ komga-reader-reader--chapter-index)))
     (if (>= next komga-reader-reader--total-chapters)
         (message "Last chapter")
+      (komga-reader--debug-log "next-chapter: %d -> %d" komga-reader-reader--chapter-index next)
       (let ((cached (komga-reader-reader--cache-get next)))
         (if cached
             (progn
@@ -180,6 +189,7 @@ If a progression is saved on the server, resume from that position."
   (let ((prev (1- komga-reader-reader--chapter-index)))
     (if (< prev 0)
         (message "First chapter")
+      (komga-reader--debug-log "prev-chapter: %d -> %d" komga-reader-reader--chapter-index prev)
       (komga-reader-reader--cache-clear)
       (komga-reader-reader--load-chapter prev))))
 
@@ -189,6 +199,7 @@ If a progression is saved on the server, resume from that position."
     (let* ((chapter (nth komga-reader-reader--chapter-index
                          komga-reader-reader--reading-order))
            (href (plist-get chapter :href)))
+      (komga-reader--debug-log "sync-progression: book=%s chapter=%d" komga-reader-reader--book-id komga-reader-reader--chapter-index)
       (komga-reader-update-progression
        komga-reader-reader--book-id
        komga-reader-reader--chapter-index
@@ -206,6 +217,7 @@ If a progression is saved on the server, resume from that position."
 If the server's saved chapter differs from the current one, jump to it.
 Otherwise, reload the current chapter."
   (when komga-reader-reader--book-id
+    (komga-reader--debug-log "refresh: book=%s current=%d" komga-reader-reader--book-id komga-reader-reader--chapter-index)
     (message "Fetching latest progress...")
     (let ((buf (current-buffer)))
       (komga-reader-get-progression
@@ -224,13 +236,16 @@ Otherwise, reload the current chapter."
                (cond
                 ((and saved-index (>= saved-index 0) (< saved-index total)
                       (/= saved-index current))
+                 (komga-reader--debug-log "refresh: jumping to server chapter %d" saved-index)
                  (message "Server progress: chapter %d" (1+ saved-index))
                  (komga-reader-reader--load-chapter saved-index))
                 ((and saved-index (>= saved-index 0) (< saved-index total))
+                 (komga-reader--debug-log "refresh: reloading current chapter")
                  (message "Already at latest chapter, reloading...")
                  (komga-reader-reader--cache-put current nil)
                  (komga-reader-reader--load-chapter current))
                 (t
+                 (komga-reader--debug-log "refresh: no server progress, reloading current")
                  (message "No server progress found, reloading current chapter...")
                  (komga-reader-reader--cache-put current nil)
                  (komga-reader-reader--load-chapter current)))))))))))

@@ -13,11 +13,22 @@
 
 ;;; Code:
 
+(defcustom komga-reader-debug nil
+  "When non-nil, enable debug logging for komga-reader."
+  :type 'boolean
+  :group 'komga-reader)
+
 (defvar komga-reader-backend-impl nil
   "Plist registering backend functions.
 Keys: :list-books :get-manifest :get-chapter
 :get-progression :update-progression.
 Each value is a function.")
+
+(defun komga-reader--debug-log (format-string &rest args)
+  "Log a debug message when `komga-reader-debug' is non-nil.
+FORMAT-STRING and ARGS are passed to `message'."
+  (when komga-reader-debug
+    (apply #'message (concat "[komga-reader] " format-string) args)))
 
 (defun komga-reader--curl (method url callback &optional headers body)
   "Call curl with METHOD, URL, optional HEADERS alist and BODY string.
@@ -29,6 +40,7 @@ When finished, call CALLBACK with (STATUS-CODE BODY-STRING)."
       (setq args (append args (list "-H" (concat (car h) ": " (cdr h))))))
     (when body
       (setq args (append args (list "-H" "Content-Type: application/json" "-d" body))))
+    (komga-reader--debug-log "curl %s %s" method url)
     (make-process
      :name "komga-reader-curl"
      :command (cons "curl" args)
@@ -38,7 +50,9 @@ When finished, call CALLBACK with (STATUS-CODE BODY-STRING)."
      :sentinel (lambda (proc _event)
                  (when (eq (process-status proc) 'exit)
                    (if (/= (process-exit-status proc) 0)
-                       (funcall callback 0 "")
+                       (progn
+                         (komga-reader--debug-log "curl failed: exit %d" (process-exit-status proc))
+                         (funcall callback 0 ""))
                      (let* ((code-match (string-match "\nHTTP_CODE:\\([0-9]+\\)\n?$" output))
                             (code (if code-match
                                       (string-to-number (match-string 1 output))
@@ -46,6 +60,7 @@ When finished, call CALLBACK with (STATUS-CODE BODY-STRING)."
                             (body (if code-match
                                       (substring output 0 (match-beginning 0))
                                     output)))
+                       (komga-reader--debug-log "curl response: HTTP %d (body %d bytes)" code (length body))
                        (funcall callback code body))))))))
 
 (defun komga-reader-list-books (callback &optional query page size)

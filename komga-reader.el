@@ -49,6 +49,7 @@ Set to 0 to disable caching."
   "Open the Komga reader book list."
   (interactive)
   (komga-reader-komga-init)
+  (komga-reader--debug-log "opening book list")
   (let ((buf (pop-to-buffer "*Komga Books*")))
     (komga-reader-booklist-mode)
     (setq tabulated-list-entries nil)
@@ -71,8 +72,10 @@ Set to 0 to disable caching."
              (tabulated-list-print t))))))))
 
 (defun komga-reader--fetch-book-entries (callback)
+  (komga-reader--debug-log "fetch-book-entries")
   (komga-reader-list-books
    (lambda (result)
+     (komga-reader--debug-log "fetch-book-entries: received %d books" (length (plist-get result :content)))
      (let* ((content (plist-get result :content))
             (entries nil))
        (dolist (book content)
@@ -160,6 +163,7 @@ Set to 0 to disable caching."
   (let ((id (tabulated-list-get-id))
         (buf (current-buffer)))
     (when id
+      (komga-reader--debug-log "booklist-select: book-id=%s" id)
       (when (buffer-local-value 'komga-reader--booklist-from-cache buf)
         (message "Note: book list is from cache, progress may not be up-to-date"))
       (message "Loading manifest...")
@@ -171,6 +175,7 @@ Set to 0 to disable caching."
            (komga-reader-reader-open id manifest)))))))
 
 (defun komga-reader--open-toc (book-id &optional chapter-index)
+  (komga-reader--debug-log "open-toc: book-id=%s chapter-index=%s" book-id chapter-index)
   (message "Loading manifest...")
   (komga-reader-get-manifest
    book-id
@@ -203,6 +208,7 @@ Set to 0 to disable caching."
              (insert "\n")))
          (goto-char (point-min))
          (when chapter-index
+           (komga-reader--debug-log "open-toc: jumping to chapter %d" chapter-index)
            (komga-reader--toc-goto-chapter chapter-index)))))))
 
 (defun komga-reader--toc-goto-chapter (chapter-index)
@@ -247,6 +253,7 @@ Set to 0 to disable caching."
         (if book-id
             (progn
               (komga-reader-komga-init)
+              (komga-reader--debug-log "resume: book-id=%s" book-id)
               (message "Resuming last book...")
               (komga-reader-get-manifest
                book-id

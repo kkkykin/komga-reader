@@ -66,6 +66,7 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
         key)))
 
 (defun komga-reader-komga-list-books (callback &optional query page size)
+  (komga-reader--debug-log "list-books query=%s page=%s size=%s" query page size)
   (let* ((url (format "%s/api/v1/books/list?page=%d&size=%d"
                        (komga-reader-komga--url)
                        (or page 0) (or size 20)))
@@ -75,6 +76,7 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
     (komga-reader--curl
      "POST" url
      (lambda (code json)
+       (komga-reader--debug-log "list-books response: HTTP %d" code)
        (if (= code 200)
            (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (error "Failed to list books: HTTP %d" code)))
@@ -83,11 +85,13 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
      body)))
 
 (defun komga-reader-komga-get-manifest (book-id callback)
+  (komga-reader--debug-log "get-manifest book-id=%s" book-id)
   (let* ((url (format "%s/api/v1/books/%s/manifest/epub"
                        (komga-reader-komga--url) book-id)))
     (komga-reader--curl
      "GET" url
      (lambda (code json)
+       (komga-reader--debug-log "get-manifest response: HTTP %d" code)
        (if (= code 200)
            (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (error "Failed to get manifest: HTTP %d" code)))
@@ -95,20 +99,24 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
        ("Accept" . "application/webpub+json")))))
 
 (defun komga-reader-komga-get-chapter (_book-id resource-url callback)
+  (komga-reader--debug-log "get-chapter resource-url=%s" resource-url)
   (komga-reader--curl
    "GET" resource-url
    (lambda (code body)
+     (komga-reader--debug-log "get-chapter response: HTTP %d (body %d bytes)" code (length body))
      (if (= code 200)
          (funcall callback body)
        (error "Failed to get chapter: HTTP %d" code)))
    `(("X-API-Key" . ,(komga-reader-komga--api-key)))))
 
 (defun komga-reader-komga-get-progression (book-id callback)
+  (komga-reader--debug-log "get-progression book-id=%s" book-id)
   (let ((url (format "%s/api/v1/books/%s/progression"
                      (komga-reader-komga--url) book-id)))
     (komga-reader--curl
      "GET" url
      (lambda (code json)
+       (komga-reader--debug-log "get-progression response: HTTP %d" code)
        (if (= code 200)
            (funcall callback (json-parse-string json :object-type 'plist :array-type 'list))
          (funcall callback nil)))
@@ -116,6 +124,7 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
        ("Accept" . "application/vnd.readium.progression+json")))))
 
 (defun komga-reader-komga-update-progression (book-id position href callback)
+  (komga-reader--debug-log "update-progression book-id=%s position=%s href=%s" book-id position href)
   (let* ((url (format "%s/api/v1/books/%s/progression"
                       (komga-reader-komga--url) book-id))
          (relative-href (replace-regexp-in-string
@@ -136,6 +145,7 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
     (komga-reader--curl
      "PUT" url
      (lambda (code body)
+       (komga-reader--debug-log "update-progression response: HTTP %d" code)
        (unless (= code 204)
          (message "Warning: failed to update progression: HTTP %d" code))
        (when callback
@@ -146,6 +156,7 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
 
 ;;;###autoload
 (defun komga-reader-komga-init ()
+  (komga-reader--debug-log "komga-init: registering backend")
   (setq komga-reader-backend-impl
         (list :list-books #'komga-reader-komga-list-books
               :get-manifest #'komga-reader-komga-get-manifest
