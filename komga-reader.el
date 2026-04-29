@@ -35,7 +35,14 @@ Set to 0 to disable caching."
 
 (when (featurep 'multisession)
   (define-multisession-variable komga-reader--booklist-cache nil
-    "Cached book list entries for komga-reader."))
+    "Cached book list entries for komga-reader.")
+  (define-multisession-variable komga-reader--last-read-book nil
+    "Last read book id for komga-reader."))
+
+(defun komga-reader--record-last-read-book (book-id)
+  "Record BOOK-ID as the most recently read book."
+  (when (and (featurep 'multisession) (boundp 'komga-reader--last-read-book))
+    (setf (multisession-value komga-reader--last-read-book) book-id)))
 
 ;;;###autoload
 (defun komga-reader ()
@@ -230,6 +237,24 @@ Set to 0 to disable caching."
          (manifest (buffer-local-value 'komga-reader--toc-manifest (current-buffer))))
     (require 'komga-reader-reader)
     (komga-reader-reader-open book-id manifest chapter-index)))
+
+;;;###autoload
+(defun komga-reader-resume ()
+  "Resume reading the last book from the server progress."
+  (interactive)
+  (if (and (featurep 'multisession) (boundp 'komga-reader--last-read-book))
+      (let ((book-id (multisession-value komga-reader--last-read-book)))
+        (if book-id
+            (progn
+              (komga-reader-komga-init)
+              (message "Resuming last book...")
+              (komga-reader-get-manifest
+               book-id
+               (lambda (manifest)
+                 (require 'komga-reader-reader)
+                 (komga-reader-reader-open book-id manifest))))
+          (message "No last read book found")))
+    (message "Resume requires Emacs 29+ multisession support")))
 
 (provide 'komga-reader)
 ;;; komga-reader.el ends here

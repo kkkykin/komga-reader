@@ -16,6 +16,8 @@
 
 (declare-function komga-reader--open-toc "komga-reader"
                   (book-id &optional chapter-index))
+(declare-function komga-reader--record-last-read-book "komga-reader"
+                  (book-id))
 
 (defgroup komga-reader nil
   "Komga reader for Emacs."
@@ -85,6 +87,7 @@ Set to 0 to disable preloading."
   "Open BOOK-ID at CHAPTER-INDEX (default 0).
 If a progression is saved on the server, resume from that position."
   (setq chapter-index (or chapter-index 0))
+  (komga-reader--record-last-read-book book-id)
   (let* ((reading-order (plist-get manifest :readingOrder))
          (total (length reading-order))
          (title (or (plist-get (plist-get manifest :metadata) :title) "Unknown"))
