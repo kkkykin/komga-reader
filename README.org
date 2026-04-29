@@ -10,7 +10,8 @@ Browse and read books from a [[https://komga.org][Komga]] server inside Emacs.
 - 📄 *HTML reader* — Renders book chapters with =shr= (no images, clean text).
 - 🔄 *Progress sync* — Automatically saves and resumes your reading position via Komga's progression API.
 - ⚡ *Preloading* — Upcoming chapters are fetched in the background for instant page turns.
-- 🔧 *Fully configurable* — Server URL and API key are =defcustom= variables (with optional environment-variable fallback).
+- 💾 *Cross-session caching* — Book list is cached via =multisession= for instant startup (Emacs 29+).
+- 🔧 *Fully configurable* — Server URL, API key, device ID/name, and cache TTL are all =defcustom= variables (with optional environment-variable fallback).
 
 * Installation
 
@@ -40,6 +41,9 @@ git clone https://github.com/yourusername/komga-reader.git
   :custom
   (komga-reader-komga-url "http://localhost:25600")
   (komga-reader-komga-api-key "YOUR_API_KEY")
+  (komga-reader-komga-device-id "emacs-desktop")
+  (komga-reader-komga-device-name "Emacs Desktop")
+  (komga-reader-booklist-cache-ttl 300)
   :commands (komga-reader))
 #+end_src
 
@@ -63,9 +67,12 @@ Or interactively via ~M-x customize-group RET komga-reader RET~.
 
 Optional settings:
 
-| Variable                              | Default | Description                           |
-|---------------------------------------+---------+---------------------------------------|
-| ~komga-reader-preload-chapters-count~ | 3       | Number of upcoming chapters to cache  |
+| Variable                              | Default                  | Description                           |
+|---------------------------------------+--------------------------+---------------------------------------|
+| ~komga-reader-preload-chapters-count~ | 3                        | Number of upcoming chapters to cache  |
+| ~komga-reader-komga-device-id~        | =emacs-(system-name)=    | Device ID for progress sync           |
+| ~komga-reader-komga-device-name~      | =Emacs (system-name)=    | Device name for progress sync         |
+| ~komga-reader-booklist-cache-ttl~     | 300                      | Cache TTL in seconds (0 = disable)    |
 
 * Usage
 
@@ -73,22 +80,27 @@ Optional settings:
 
 Run ~M-x komga-reader RET~ to open the book list.
 
+When the list is opened, if a cached book list exists (and the cache TTL has not expired), it is shown immediately while fresh data is fetched in the background. If the list is from cache and you open a book, a message warns you that the progress shown may not be up-to-date. Press ~g~ to refresh the list at any time.
+
 ** Book list keys (~komga-reader-booklist-mode~)
 
-| Key     | Action                              |
-|---------+-------------------------------------|
-| ~RET~   | Open selected book at saved progress|
-| ~t~     | Open table of contents for book     |
-| ~q~     | Quit window                         |
+| Key     | Action                               |
+|---------+--------------------------------------|
+| ~RET~   | Open selected book at saved progress |
+| ~t~     | Open table of contents for book      |
+| ~g~     | Refresh book list                    |
+| ~q~     | Quit window                          |
 
 ** Reader keys (~komga-reader-reader-mode~)
 
 | Key         | Action                  |
 |-------------+-------------------------|
-| ~n~ / ~SPC~ | Next chapter            |
-| ~p~ / ~DEL~ | Previous chapter        |
-| ~j~ / ~→~   | Next chapter            |
-| ~k~ / ~←~   | Previous chapter        |
+| ~n~         | Next chapter            |
+| ~p~         | Previous chapter        |
+| ~SPC~       | Scroll down             |
+| ~DEL~       | Scroll up               |
+| ~→~         | Next chapter            |
+| ~←~         | Previous chapter        |
 | ~q~         | Quit and sync progress  |
 
 ** Table of contents keys (~komga-reader-toc-mode~)
