@@ -25,6 +25,30 @@
                  (const :tag "Unset" nil))
   :group 'komga-reader)
 
+(defcustom komga-reader-komga-device-id nil
+  "Device ID for syncing reading progress with Komga.
+Defaults to emacs-(system-name) if nil."
+  :type '(choice (string :tag "Device ID")
+                 (const :tag "Default (emacs-(system-name))" nil))
+  :group 'komga-reader)
+
+(defcustom komga-reader-komga-device-name nil
+  "Device name for syncing reading progress with Komga.
+Defaults to \"Emacs (system-name)\" if nil."
+  :type '(choice (string :tag "Device Name")
+                 (const :tag "Default (Emacs (system-name))" nil))
+  :group 'komga-reader)
+
+(defun komga-reader-komga--device-id ()
+  "Return the device ID for syncing progress."
+  (or komga-reader-komga-device-id
+      (format "emacs-%s" (system-name))))
+
+(defun komga-reader-komga--device-name ()
+  "Return the device name for syncing progress."
+  (or komga-reader-komga-device-name
+      (format "Emacs %s" (system-name))))
+
 (defun komga-reader-komga--url ()
   "Return the Komga server URL.
 Prefers `komga-reader-komga-url', falling back to KOMGA_URL env var."
@@ -100,8 +124,8 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
                                  book-id)
                          "" href))
          (body (json-serialize
-                (list :device (list :id "emacs-komga-reader"
-                                    :name "Emacs Komga Reader")
+                (list :device (list :id (komga-reader-komga--device-id)
+                                    :name (komga-reader-komga--device-name))
                       :locator (list :href relative-href
                                      :type "application/xhtml+xml"
                                      :locations (list :position position
