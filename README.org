@@ -11,6 +11,7 @@ Browse and read books from a [[https://komga.org][Komga]] server inside Emacs.
 - 🔄 *Progress sync* — Automatically saves and resumes your reading position via Komga's progression API.
 - ⚡ *Preloading* — Upcoming chapters are fetched in the background for instant page turns.
 - 💾 *Cross-session caching* — Book list is cached via =multisession= for instant startup (Emacs 29+).
+- ▶️ *Resume reading* — Jump back to your last book with ~M-x komga-reader-resume~.
 - 🔧 *Fully configurable* — Server URL, API key, device ID/name, and cache TTL are all =defcustom= variables (with optional environment-variable fallback).
 
 * Installation
@@ -44,7 +45,7 @@ git clone https://github.com/yourusername/komga-reader.git
   (komga-reader-komga-device-id "emacs-desktop")
   (komga-reader-komga-device-name "Emacs Desktop")
   (komga-reader-booklist-cache-ttl 300)
-  :commands (komga-reader))
+  :commands (komga-reader komga-reader-resume))
 #+end_src
 
 * Configuration
@@ -82,6 +83,8 @@ Run ~M-x komga-reader RET~ to open the book list.
 
 When the list is opened, if a cached book list exists (and the cache TTL has not expired), it is shown immediately while fresh data is fetched in the background. If the list is from cache and you open a book, a message warns you that the progress shown may not be up-to-date. Press ~g~ to refresh the list at any time.
 
+Run ~M-x komga-reader-resume RET~ to jump directly back to the last book you were reading (requires Emacs 29+).
+
 ** Book list keys (~komga-reader-booklist-mode~)
 
 | Key     | Action                               |
@@ -93,15 +96,17 @@ When the list is opened, if a cached book list exists (and the cache TTL has not
 
 ** Reader keys (~komga-reader-reader-mode~)
 
-| Key         | Action                  |
-|-------------+-------------------------|
-| ~n~         | Next chapter            |
-| ~p~         | Previous chapter        |
-| ~SPC~       | Scroll down             |
-| ~DEL~       | Scroll up               |
-| ~→~         | Next chapter            |
-| ~←~         | Previous chapter        |
-| ~q~         | Quit and sync progress  |
+| Key         | Action                     |
+|-------------+----------------------------|
+| ~n~         | Next chapter               |
+| ~p~         | Previous chapter           |
+| ~SPC~       | Scroll down                |
+| ~DEL~       | Scroll up                  |
+| ~t~         | Open TOC at current chapter|
+| ~g~         | Refresh / fetch progress   |
+| ~→~         | Next chapter               |
+| ~←~         | Previous chapter           |
+| ~q~         | Quit and sync progress     |
 
 ** Table of contents keys (~komga-reader-toc-mode~)
 
