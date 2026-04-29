@@ -47,6 +47,29 @@
   (should (booleanp komga-reader-debug)))
 
 ;; ---------------------------------------------------------------------------
+;; curl extra-args tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-curl-extra-args-default ()
+  "Test that curl extra args default to nil."
+  (should (null komga-reader-curl-extra-args)))
+
+(ert-deftest komga-reader-test-curl-extra-args-injected ()
+  "Test that curl extra args are injected into the curl command."
+  (let ((captured-command nil))
+    (cl-letf (((symbol-function 'make-process)
+               (lambda (&rest args)
+                 (setq captured-command (plist-get args :command)))))
+      (let ((komga-reader-curl-extra-args '("--proxy" "http://127.0.0.1:8080")))
+        (komga-reader--curl "GET" "http://example.com" (lambda (_ _)) nil nil)
+        (should (member "--proxy" captured-command))
+        (should (member "http://127.0.0.1:8080" captured-command))
+        (should (member "http://example.com" captured-command))
+        ;; extra args should appear before the URL
+        (should (< (seq-position captured-command "--proxy")
+                      (seq-position captured-command "http://example.com")))))))
+
+;; ---------------------------------------------------------------------------
 ;; Low-level async process tests
 ;; ---------------------------------------------------------------------------
 

@@ -18,6 +18,15 @@
   :type 'boolean
   :group 'komga-reader)
 
+(defcustom komga-reader-curl-extra-args nil
+  "Extra arguments passed to curl for every HTTP request.
+Each element should be a string.  For example, to use a proxy:
+  (\"-x\" \"http://127.0.0.1:8080\")
+Or to ignore SSL certificate errors:
+  (\"--insecure\")"
+  :type '(repeat string)
+  :group 'komga-reader)
+
 (defvar komga-reader-backend-impl nil
   "Plist registering backend functions.
 Keys: :list-books :get-manifest :get-chapter
@@ -33,14 +42,16 @@ FORMAT-STRING and ARGS are passed to `message'."
 (defun komga-reader--curl (method url callback &optional headers body)
   "Call curl with METHOD, URL, optional HEADERS alist and BODY string.
 When finished, call CALLBACK with (STATUS-CODE BODY-STRING)."
-  (let* ((args (list "-s" "-w" "\nHTTP_CODE:%{http_code}" "-X" method url))
+  (let* ((args (append (list "-s" "-w" "\nHTTP_CODE:%{http_code}" "-X" method)
+                       komga-reader-curl-extra-args
+                       (list url)))
          (coding-system-for-read 'utf-8)
          (output ""))
     (dolist (h headers)
       (setq args (append args (list "-H" (concat (car h) ": " (cdr h))))))
     (when body
       (setq args (append args (list "-H" "Content-Type: application/json" "-d" body))))
-    (komga-reader--debug-log "curl %s %s" method url)
+    (komga-reader--debug-log "curl %s %s (extra-args: %S)" method url komga-reader-curl-extra-args)
     (make-process
      :name "komga-reader-curl"
      :command (cons "curl" args)
