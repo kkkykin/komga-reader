@@ -64,7 +64,8 @@ Set to 0 to disable preloading."
   "Major mode for reading books."
   (setq truncate-lines t)
   (buffer-disable-undo)
-  (setq buffer-read-only t))
+  (setq buffer-read-only t)
+  (setq-local revert-buffer-function #'komga-reader-reader--refresh))
 
 (defun komga-reader-reader--put-image (_spec _alt _flags)
   "Ignore images.")
@@ -196,6 +197,40 @@ If a progression is saved on the server, resume from that position."
   (interactive)
   (komga-reader-reader--sync-progression)
   (quit-window))
+
+(defun komga-reader-reader--refresh (_ignore-auto _noconfirm)
+  "Refresh the reader by fetching the latest progression from server.
+If the server's saved chapter differs from the current one, jump to it.
+Otherwise, reload the current chapter."
+  (when komga-reader-reader--book-id
+    (message "Fetching latest progress...")
+    (let ((buf (current-buffer)))
+      (komga-reader-get-progression
+       komga-reader-reader--book-id
+       (lambda (progression)
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (let* ((saved-pos (and progression
+                                    (let ((locator (plist-get progression :locator)))
+                                      (let ((locations (plist-get locator :locations)))
+                                        (plist-get locations :position)))))
+                    (saved-index (when (numberp saved-pos)
+                                   (truncate saved-pos)))
+                    (total komga-reader-reader--total-chapters)
+                    (current komga-reader-reader--chapter-index))
+               (cond
+                ((and saved-index (>= saved-index 0) (< saved-index total)
+                      (/= saved-index current))
+                 (message "Server progress: chapter %d" (1+ saved-index))
+                 (komga-reader-reader--load-chapter saved-index))
+                ((and saved-index (>= saved-index 0) (< saved-index total))
+                 (message "Already at latest chapter, reloading...")
+                 (komga-reader-reader--cache-put current nil)
+                 (komga-reader-reader--load-chapter current))
+                (t
+                 (message "No server progress found, reloading current chapter...")
+                 (komga-reader-reader--cache-put current nil)
+                 (komga-reader-reader--load-chapter current)))))))))))
 
 (defun komga-reader-reader-open-toc ()
   "Open the table of contents for the current book, jumping to current chapter."
