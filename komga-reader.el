@@ -73,6 +73,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") #'komga-reader--booklist-select)
     (define-key map (kbd "t") #'komga-reader--booklist-open-toc)
+    (define-key map (kbd "g") #'revert-buffer)
     (define-key map (kbd "q") #'quit-window)
     map))
 
@@ -91,7 +92,17 @@
                                ("Progress" 10 t)
                                ("Last Read" 20 t)])
   (setq tabulated-list-sort-key (cons "Last Read" t))
+  (setq-local revert-buffer-function #'komga-reader--booklist-refresh)
   (tabulated-list-init-header))
+
+(defun komga-reader--booklist-refresh (_ignore-auto _noconfirm)
+  "Refresh the Komga book list."
+  (message "Refreshing books...")
+  (komga-reader--fetch-book-entries
+   (lambda (entries)
+     (when (eq major-mode 'komga-reader-booklist-mode)
+       (setq tabulated-list-entries entries)
+       (tabulated-list-print t)))))
 
 (defun komga-reader--booklist-select ()
   "Open the selected book at its saved progress, or chapter 0."
