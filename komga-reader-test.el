@@ -294,5 +294,86 @@
     (komga-reader-booklist-mode)
     (should (eq revert-buffer-function #'komga-reader--booklist-refresh))))
 
+;; ---------------------------------------------------------------------------
+;; Reader open chapter-index tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-reader-open-with-chapter-index-ignores-server ()
+  "When chapter-index is explicitly given, do not override with server progress."
+  (with-temp-buffer
+    (let ((loaded-index nil)
+          (manifest '(:readingOrder ((:href "ch0") (:href "ch1") (:href "ch2"))
+                      :metadata (:title "Test"))))
+      (cl-letf (((symbol-function 'komga-reader-get-progression)
+                 (lambda (_book-id callback)
+                   ;; Server says progress is at chapter 2
+                   (run-with-timer 0.01 nil
+                                   (lambda ()
+                                     (funcall callback
+                                              '(:locator (:locations (:position 2))))))))
+                ((symbol-function 'komga-reader-reader--load-chapter)
+                 (lambda (index)
+                   (setq loaded-index index)))
+                ((symbol-function 'komga-reader--record-last-read-book)
+                 (lambda (_) nil))
+                ((symbol-function 'pop-to-buffer)
+                 (lambda (_) (current-buffer))))
+        (komga-reader-reader-open "book1" manifest 1)
+        (with-timeout (5 (ert-fail "Async timeout"))
+          (while (null loaded-index)
+            (sleep-for 0.05)))
+        (should (= loaded-index 1))))))
+
+(ert-deftest komga-reader-test-reader-open-without-chapter-index-uses-server ()
+  "When chapter-index is nil, resume from server progress."
+  (with-temp-buffer
+    (let ((loaded-index nil)
+          (manifest '(:readingOrder ((:href "ch0") (:href "ch1") (:href "ch2"))
+                      :metadata (:title "Test"))))
+      (cl-letf (((symbol-function 'komga-reader-get-progression)
+                 (lambda (_book-id callback)
+                   ;; Server says chapter 2
+                   (run-with-timer 0.01 nil
+                                   (lambda ()
+                                     (funcall callback
+                                              '(:locator (:locations (:position 2))))))))
+                ((symbol-function 'komga-reader-reader--load-chapter)
+                 (lambda (index)
+                   (setq loaded-index index)))
+                ((symbol-function 'komga-reader--record-last-read-book)
+                 (lambda (_) nil))
+                ((symbol-function 'pop-to-buffer)
+                 (lambda (_) (current-buffer))))
+        (komga-reader-reader-open "book1" manifest)
+        (with-timeout (5 (ert-fail "Async timeout"))
+          (while (null loaded-index)
+            (sleep-for 0.05)))
+        (should (= loaded-index 2))))))
+
+(ert-deftest komga-reader-test-reader-open-without-progress-defaults-to-zero ()
+  "When chapter-index is nil and server has no progress, default to chapter 0."
+  (with-temp-buffer
+    (let ((loaded-index nil)
+          (manifest '(:readingOrder ((:href "ch0") (:href "ch1") (:href "ch2"))
+                      :metadata (:title "Test"))))
+      (cl-letf (((symbol-function 'komga-reader-get-progression)
+                 (lambda (_book-id callback)
+                   ;; Server has no progress
+                   (run-with-timer 0.01 nil
+                                   (lambda ()
+                                     (funcall callback nil)))))
+                ((symbol-function 'komga-reader-reader--load-chapter)
+                 (lambda (index)
+                   (setq loaded-index index)))
+                ((symbol-function 'komga-reader--record-last-read-book)
+                 (lambda (_) nil))
+                ((symbol-function 'pop-to-buffer)
+                 (lambda (_) (current-buffer))))
+        (komga-reader-reader-open "book1" manifest)
+        (with-timeout (5 (ert-fail "Async timeout"))
+          (while (null loaded-index)
+            (sleep-for 0.05)))
+        (should (= loaded-index 0))))))
+
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here

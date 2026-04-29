@@ -85,8 +85,9 @@ Set to 0 to disable preloading."
 
 (defun komga-reader-reader-open (book-id manifest &optional chapter-index)
   "Open BOOK-ID at CHAPTER-INDEX (default 0).
-If a progression is saved on the server, resume from that position."
-  (setq chapter-index (or chapter-index 0))
+If CHAPTER-INDEX is nil and a progression is saved on the server, resume from that position."
+  (let ((resume-from-server (null chapter-index)))
+    (setq chapter-index (or chapter-index 0))
   (komga-reader--debug-log "reader-open book-id=%s chapter-index=%s" book-id chapter-index)
   (komga-reader--record-last-read-book book-id)
   (let* ((reading-order (plist-get manifest :readingOrder))
@@ -110,10 +111,11 @@ If a progression is saved on the server, resume from that position."
                                       (plist-get locations :position)))))
                   (saved-index (when (numberp saved-pos)
                                  (truncate saved-pos))))
-             (when (and saved-index (>= saved-index 0) (< saved-index total))
+             (when (and resume-from-server
+                        saved-index (>= saved-index 0) (< saved-index total))
                (komga-reader--debug-log "reader-open: resuming from server progress chapter %d" saved-index)
                (setq chapter-index saved-index))
-             (komga-reader-reader--load-chapter chapter-index))))))))
+             (komga-reader-reader--load-chapter chapter-index)))))))))
 
 (defun komga-reader-reader--load-chapter (index)
   "Load chapter at INDEX."

@@ -124,8 +124,8 @@ Run ~M-x komga-reader-resume RET~ to jump directly back to the last book you wer
 | ~p~         | Previous chapter           |
 | ~SPC~       | Scroll down                |
 | ~DEL~       | Scroll up                  |
-| ~t~         | Open TOC at current chapter|
-| ~g~         | Refresh / fetch progress   |
+| ~t~         | Open TOC, jump to current chapter |
+| ~g~         | Refresh / fetch server progress   |
 | ~→~         | Next chapter               |
 | ~←~         | Previous chapter           |
 | ~q~         | Quit and sync progress     |
