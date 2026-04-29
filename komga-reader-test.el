@@ -25,22 +25,23 @@
 (ert-deftest komga-reader-test-debug-log-nil ()
   "Test that debug log produces no output when debug is nil."
   (let ((komga-reader-debug nil)
-        (logged nil))
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args)
-                 (setq logged (apply #'format fmt args)))))
-      (komga-reader--debug-log "test %s" "message")
-      (should (null logged)))))
+        (komga-reader-debug-buffer "*komga-reader-test-debug-nil*"))
+    (komga-reader--debug-log "test %s" "message")
+    (should (not (get-buffer komga-reader-debug-buffer)))))
 
 (ert-deftest komga-reader-test-debug-log-non-nil ()
-  "Test that debug log produces output when debug is non-nil."
+  "Test that debug log produces output to debug buffer when debug is enabled."
   (let ((komga-reader-debug t)
-        (logged nil))
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args)
-                 (setq logged (apply #'format fmt args)))))
-      (komga-reader--debug-log "test %s" "message")
-      (should (string= logged "[komga-reader] test message")))))
+        (komga-reader-debug-buffer "*komga-reader-test-debug-nonnil*"))
+    (unwind-protect
+        (progn
+          (komga-reader--debug-log "test %s" "message")
+          (let ((buf (get-buffer komga-reader-debug-buffer)))
+            (should buf)
+            (should (string= (with-current-buffer buf (buffer-string))
+                             "[komga-reader] test message\n"))))
+      (when (get-buffer komga-reader-debug-buffer)
+        (kill-buffer komga-reader-debug-buffer)))))
 
 (ert-deftest komga-reader-test-debug-custom-variable ()
   "Test that komga-reader-debug is a boolean custom variable."

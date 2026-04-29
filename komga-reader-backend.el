@@ -18,6 +18,11 @@
   :type 'boolean
   :group 'komga-reader)
 
+(defcustom komga-reader-debug-buffer "*komga-reader-debug*"
+  "Name of the buffer to write debug log messages to."
+  :type 'string
+  :group 'komga-reader)
+
 (defcustom komga-reader-curl-extra-args nil
   "Extra arguments passed to curl for every HTTP request.
 Each element should be a string.  For example, to use a proxy:
@@ -34,10 +39,15 @@ Keys: :list-books :get-manifest :get-chapter
 Each value is a function.")
 
 (defun komga-reader--debug-log (format-string &rest args)
-  "Log a debug message when `komga-reader-debug' is non-nil.
-FORMAT-STRING and ARGS are passed to `message'."
+  "Log a debug message to `komga-reader-debug-buffer' when debug is enabled.
+FORMAT-STRING and ARGS are formatted and inserted into the debug buffer."
   (when komga-reader-debug
-    (apply #'message (concat "[komga-reader] " format-string) args)))
+    (let ((buf (get-buffer-create komga-reader-debug-buffer))
+          (msg (apply #'format (concat "[komga-reader] " format-string) args)))
+      (with-current-buffer buf
+        (read-only-mode -1)
+        (goto-char (point-max))
+        (insert msg "\n")))))
 
 (defun komga-reader--curl (method url callback &optional headers body)
   "Call curl with METHOD, URL, optional HEADERS alist and BODY string.
