@@ -14,6 +14,9 @@
 (require 'shr)
 (require 'komga-reader-backend)
 
+(declare-function komga-reader--open-toc "komga-reader"
+                  (book-id &optional chapter-index))
+
 (defgroup komga-reader nil
   "Komga reader for Emacs."
   :group 'comm)
@@ -53,6 +56,7 @@ Set to 0 to disable preloading."
     (define-key map (kbd "DEL") #'scroll-down-command)
     (define-key map (kbd "<right>") #'komga-reader-reader-next-chapter)
     (define-key map (kbd "<left>") #'komga-reader-reader-prev-chapter)
+    (define-key map (kbd "t") #'komga-reader-reader-open-toc)
     (define-key map (kbd "q") #'komga-reader-reader-quit)
     map))
 
@@ -192,6 +196,13 @@ If a progression is saved on the server, resume from that position."
   (interactive)
   (komga-reader-reader--sync-progression)
   (quit-window))
+
+(defun komga-reader-reader-open-toc ()
+  "Open the table of contents for the current book, jumping to current chapter."
+  (interactive)
+  (when komga-reader-reader--book-id
+    (komga-reader--open-toc komga-reader-reader--book-id
+                            komga-reader-reader--chapter-index)))
 
 (provide 'komga-reader-reader)
 ;;; komga-reader-reader.el ends here

@@ -163,7 +163,7 @@ Set to 0 to disable caching."
            (require 'komga-reader-reader)
            (komga-reader-reader-open id manifest)))))))
 
-(defun komga-reader--open-toc (book-id)
+(defun komga-reader--open-toc (book-id &optional chapter-index)
   (message "Loading manifest...")
   (komga-reader-get-manifest
    book-id
@@ -194,7 +194,18 @@ Set to 0 to disable caching."
                                  'href href
                                  'follow-link t)
              (insert "\n")))
-         (goto-char (point-min)))))))
+         (goto-char (point-min))
+         (when chapter-index
+           (komga-reader--toc-goto-chapter chapter-index)))))))
+
+(defun komga-reader--toc-goto-chapter (chapter-index)
+  "Move point to the button for CHAPTER-INDEX in the TOC buffer."
+  (goto-char (point-min))
+  (let ((btn (next-button (point-min))))
+    (while (and btn (/= (button-get btn 'chapter-index) chapter-index))
+      (setq btn (next-button (button-end btn))))
+    (when btn
+      (goto-char (button-start btn)))))
 
 (defvar komga-reader-toc-mode-map
   (let ((map (make-sparse-keymap)))
