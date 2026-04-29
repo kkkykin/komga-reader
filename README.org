@@ -12,7 +12,9 @@ Browse and read books from a [[https://komga.org][Komga]] server inside Emacs.
 - ⚡ *Preloading* — Upcoming chapters are fetched in the background for instant page turns.
 - 💾 *Cross-session caching* — Book list is cached via =multisession= for instant startup (Emacs 29+).
 - ▶️ *Resume reading* — Jump back to your last book with ~M-x komga-reader-resume~.
-- 🔧 *Fully configurable* — Server URL, API key, device ID/name, and cache TTL are all =defcustom= variables (with optional environment-variable fallback).
+- 🔧 *Fully configurable* — Server URL, API key, device ID/name, cache TTL, debug logging, and curl extra args are all =defcustom= variables (with optional environment-variable fallback).
+- 🐛 *Debug logging* — Toggle =komga-reader-debug= to trace HTTP requests, responses, and reader lifecycle in the =*Messages*= buffer.
+- 🔗 *Curl extra args* — Pass arbitrary flags (e.g. proxy =-x=) via =komga-reader-curl-extra-args= for every HTTP request.
 
 * Installation
 
@@ -45,6 +47,8 @@ git clone https://github.com/yourusername/komga-reader.git
   (komga-reader-komga-device-id "emacs-desktop")
   (komga-reader-komga-device-name "Emacs Desktop")
   (komga-reader-booklist-cache-ttl 300)
+  (komga-reader-debug nil)
+  (komga-reader-curl-extra-args nil)
   :commands (komga-reader komga-reader-resume))
 #+end_src
 
@@ -74,6 +78,24 @@ Optional settings:
 | ~komga-reader-komga-device-id~        | =emacs-(system-name)=    | Device ID for progress sync           |
 | ~komga-reader-komga-device-name~      | =Emacs (system-name)=    | Device name for progress sync         |
 | ~komga-reader-booklist-cache-ttl~     | 300                      | Cache TTL in seconds (0 = disable)    |
+| ~komga-reader-debug~                  | =nil=                    | Enable debug logging                  |
+| ~komga-reader-curl-extra-args~        | =nil=                    | Extra curl flags (e.g. proxy)         |
+
+** Debugging and proxying
+
+Enable debug logging to trace every HTTP request and response:
+
+#+begin_src elisp
+(setq komga-reader-debug t)
+#+end_src
+
+Pass extra arguments to curl (e.g. for proxying through Burp or mitmproxy):
+
+#+begin_src elisp
+(setq komga-reader-curl-extra-args '("-x" "http://127.0.0.1:8080"))
+;; or ignore SSL certificate errors for self-signed proxies:
+(setq komga-reader-curl-extra-args '("--insecure"))
+#+end_src
 
 * Usage
 
