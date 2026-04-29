@@ -97,7 +97,7 @@ Set to 0 to disable caching."
   "Return cached book list entries if not expired, else nil."
   (when (and (featurep 'multisession) (boundp 'komga-reader--booklist-cache)
              (> komga-reader-booklist-cache-ttl 0))
-    (let* ((data (multisession-value 'komga-reader--booklist-cache))
+    (let* ((data (multisession-value komga-reader--booklist-cache))
            (timestamp (plist-get data :timestamp))
            (entries (plist-get data :entries)))
       (when (and timestamp entries
@@ -109,7 +109,7 @@ Set to 0 to disable caching."
   "Store book list ENTRIES in multisession cache."
   (when (and (featurep 'multisession) (boundp 'komga-reader--booklist-cache)
              (> komga-reader-booklist-cache-ttl 0))
-    (setf (multisession-value 'komga-reader--booklist-cache)
+    (setf (multisession-value komga-reader--booklist-cache)
           (list :timestamp (current-time) :entries entries))))
 
 (defvar komga-reader-booklist-mode-map

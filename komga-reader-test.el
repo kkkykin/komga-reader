@@ -16,6 +16,7 @@
 (require 'komga-reader-backend)
 (require 'komga-reader-komga)
 (require 'komga-reader-reader)
+(require 'komga-reader)
 
 ;; ---------------------------------------------------------------------------
 ;; Low-level async process tests
@@ -132,6 +133,99 @@
     (should (string= (komga-reader-reader--cache-get 5) "<html>cached</html>"))
     (komga-reader-reader--cache-put 5 nil)
     (should (null (komga-reader-reader--cache-get 5)))))
+
+;; ---------------------------------------------------------------------------
+;; Device ID / Device Name tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-device-id-default ()
+  "Test that device-id defaults to emacs-(system-name)."
+  (let ((komga-reader-komga-device-id nil))
+    (should (string= (komga-reader-komga--device-id)
+                     (format "emacs-%s" (system-name))))))
+
+(ert-deftest komga-reader-test-device-name-default ()
+  "Test that device-name defaults to Emacs (system-name)."
+  (let ((komga-reader-komga-device-name nil))
+    (should (string= (komga-reader-komga--device-name)
+                     (format "Emacs %s" (system-name))))))
+
+(ert-deftest komga-reader-test-device-id-custom ()
+  "Test that custom device-id is respected."
+  (let ((komga-reader-komga-device-id "my-custom-device"))
+    (should (string= (komga-reader-komga--device-id) "my-custom-device"))))
+
+(ert-deftest komga-reader-test-device-name-custom ()
+  "Test that custom device-name is respected."
+  (let ((komga-reader-komga-device-name "My Reader"))
+    (should (string= (komga-reader-komga--device-name) "My Reader"))))
+
+;; ---------------------------------------------------------------------------
+;; Keymap tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-reader-keymap-spc-scroll-up ()
+  "Test that SPC is bound to scroll-up-command in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "SPC"))
+              #'scroll-up-command)))
+
+(ert-deftest komga-reader-test-reader-keymap-del-scroll-down ()
+  "Test that DEL is bound to scroll-down-command in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "DEL"))
+              #'scroll-down-command)))
+
+(ert-deftest komga-reader-test-reader-keymap-j-unbound ()
+  "Test that j is no longer bound in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "j"))
+              nil)))
+
+(ert-deftest komga-reader-test-reader-keymap-k-unbound ()
+  "Test that k is no longer bound in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "k"))
+              nil)))
+
+(ert-deftest komga-reader-test-booklist-keymap-g-revert ()
+  "Test that g is bound to revert-buffer in booklist mode."
+  (should (eq (lookup-key komga-reader-booklist-mode-map (kbd "g"))
+              #'revert-buffer)))
+
+;; ---------------------------------------------------------------------------
+;; Multisession cache tests (Emacs 29+ only)
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-cache-ttl-zero-disabled ()
+  "Test that cache is disabled when TTL is 0."
+  (let ((komga-reader-booklist-cache-ttl 0))
+    (should (null (komga-reader--booklist-get-cache)))))
+
+(ert-deftest komga-reader-test-cache-put-and-get ()
+  "Test that cache stores and retrieves entries."
+  (skip-unless (featurep 'multisession))
+  (let ((komga-reader-booklist-cache-ttl 300)
+        (test-entries '(("id1" ["Title1" "Author1" "100" "50%" "2024-01-01"]))))
+    (komga-reader--booklist-put-cache test-entries)
+    (let ((cached (komga-reader--booklist-get-cache)))
+      (should (equal cached test-entries)))))
+
+(ert-deftest komga-reader-test-cache-expired ()
+  "Test that expired cache returns nil."
+  (skip-unless (featurep 'multisession))
+  (let ((komga-reader-booklist-cache-ttl 1)
+        (test-entries '(("id1" ["Title1" "Author1" "100" "50%" "2024-01-01"]))))
+    (komga-reader--booklist-put-cache test-entries)
+    ;; Wait for cache to expire
+    (sleep-for 1.5)
+    (should (null (komga-reader--booklist-get-cache)))))
+
+;; ---------------------------------------------------------------------------
+;; Revert-buffer hook test
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-booklist-revert-buffer-function ()
+  "Test that revert-buffer-function is set in booklist mode."
+  (with-temp-buffer
+    (komga-reader-booklist-mode)
+    (should (eq revert-buffer-function #'komga-reader--booklist-refresh))))
 
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here
