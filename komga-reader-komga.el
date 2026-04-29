@@ -67,9 +67,9 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
 
 (defun komga-reader-komga-list-books (callback &optional query page size)
   (komga-reader--debug-log "list-books query=%s page=%s size=%s" query page size)
-  (let* ((url (format "%s/api/v1/books/list?page=%d&size=%d"
+  (let* ((url (format "%s/api/v1/books/list?page=%d&size=%d&sort=readProgress.readDate,desc"
                        (komga-reader-komga--url)
-                       (or page 0) (or size 20)))
+                       (or page 0) (or size 1000)))
          (body (if query
                    (json-serialize (list :fullTextSearch query))
                  "{}")))
