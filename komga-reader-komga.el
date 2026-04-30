@@ -137,10 +137,8 @@ Prefers `komga-reader-komga-api-key', falling back to KOMGA_API_KEY env var."
                                     :name (komga-reader-komga--device-name))
                       :locator (list :href relative-href
                                      :type "application/xhtml+xml"
-                                     :locations (list :position position
-                                                      :progression 0.0
-                                                      :totalProgression 0.0
-                                                      :fragments []))
+                                     :locations (list :progression 0.0
+                                                      :totalProgression 0.0))
                       :modified (format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
     (komga-reader--curl
      "PUT" url

@@ -50,6 +50,20 @@ Set to 0 to disable preloading."
   "Clear the chapter cache."
   (setq-local komga-reader-reader--chapter-cache nil))
 
+(defun komga-reader-reader--chapter-index-from-locator (locator reading-order)
+  "Find chapter index in READING-ORDER matching LOCATOR's href.
+Returns nil if no match found."
+  (when locator
+    (let ((href (plist-get locator :href))
+          (index 0)
+          (found nil))
+      (while (and (not found) (< index (length reading-order)))
+        (let ((chapter-href (plist-get (nth index reading-order) :href)))
+          (when (and href chapter-href (string-suffix-p href chapter-href))
+            (setq found index)))
+        (setq index (1+ index)))
+      found)))
+
 (defvar komga-reader-reader-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'komga-reader-reader-next-chapter)
@@ -105,12 +119,10 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
      (lambda (progression)
        (when (buffer-live-p buf)
          (with-current-buffer buf
-           (let* ((saved-pos (and progression
-                                  (let ((locator (plist-get progression :locator)))
-                                    (let ((locations (plist-get locator :locations)))
-                                      (plist-get locations :position)))))
-                  (saved-index (when (numberp saved-pos)
-                                 (truncate saved-pos))))
+           (let* ((saved-index (and progression
+                                    (komga-reader-reader--chapter-index-from-locator
+                                     (plist-get progression :locator)
+                                     reading-order))))
              (when (and resume-from-server
                         saved-index (>= saved-index 0) (< saved-index total))
                (komga-reader--debug-log "reader-open: resuming from server progress chapter %d" saved-index)
@@ -227,12 +239,10 @@ Otherwise, reload the current chapter."
        (lambda (progression)
          (when (buffer-live-p buf)
            (with-current-buffer buf
-             (let* ((saved-pos (and progression
-                                    (let ((locator (plist-get progression :locator)))
-                                      (let ((locations (plist-get locator :locations)))
-                                        (plist-get locations :position)))))
-                    (saved-index (when (numberp saved-pos)
-                                   (truncate saved-pos)))
+             (let* ((saved-index (and progression
+                                      (komga-reader-reader--chapter-index-from-locator
+                                       (plist-get progression :locator)
+                                       komga-reader-reader--reading-order)))
                     (total komga-reader-reader--total-chapters)
                     (current komga-reader-reader--chapter-index))
                (cond

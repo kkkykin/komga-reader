@@ -310,7 +310,7 @@
                    (run-with-timer 0.01 nil
                                    (lambda ()
                                      (funcall callback
-                                              '(:locator (:locations (:position 2))))))))
+                                              '(:locator (:href "ch2")))))))
                 ((symbol-function 'komga-reader-reader--load-chapter)
                  (lambda (index)
                    (setq loaded-index index)))
@@ -336,7 +336,7 @@
                    (run-with-timer 0.01 nil
                                    (lambda ()
                                      (funcall callback
-                                              '(:locator (:locations (:position 2))))))))
+                                              '(:locator (:href "ch2")))))))
                 ((symbol-function 'komga-reader-reader--load-chapter)
                  (lambda (index)
                    (setq loaded-index index)))
