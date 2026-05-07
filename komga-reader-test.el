@@ -186,6 +186,118 @@
     (komga-reader-reader--cache-put 5 nil)
     (should (null (komga-reader-reader--cache-get 5)))))
 
+(ert-deftest komga-reader-test-preload-ahead-target-buf ()
+  "Test that preload-ahead uses passed target-buf rather than current-buffer."
+  (let ((reading-buf (generate-new-buffer " *test-reading*"))
+        (other-buf (generate-new-buffer " *test-other*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer reading-buf
+            (komga-reader-reader-mode)
+            (setq-local komga-reader-reader--book-id "book1")
+            (setq-local komga-reader-reader--chapter-index 0)
+            (setq-local komga-reader-reader--total-chapters 5)
+            (setq-local komga-reader-reader--reading-order
+                        '((:href "ch0") (:href "ch1") (:href "ch2") (:href "ch3") (:href "ch4")))
+            (setq-local komga-reader-reader--chapter-cache nil))
+          ;; Switch to another buffer and call preload-ahead with reading-buf
+          (with-current-buffer other-buf
+            (should (null komga-reader-reader--book-id))
+            (let ((fetched-chapters nil))
+              (cl-letf (((symbol-function 'komga-reader-get-chapter)
+                         (lambda (_book-id href callback)
+                           (push href fetched-chapters)
+                           (funcall callback "html"))))
+                (komga-reader-reader--preload-ahead reading-buf))
+              ;; Should have fetched chapters 1, 2, 3 (preload count = 3)
+              (should (= (length fetched-chapters) 3)))))
+      (when (buffer-live-p reading-buf) (kill-buffer reading-buf))
+      (when (buffer-live-p other-buf) (kill-buffer other-buf)))))
+
+(ert-deftest komga-reader-test-preload-ahead-dead-buffer ()
+  "Test that preload-ahead silently returns when target buffer is dead."
+  (let ((dead-buf (generate-new-buffer " *test-dead*")))
+    (kill-buffer dead-buf)
+    ;; Should not signal an error
+    (should (null (komga-reader-reader--preload-ahead dead-buf)))))
+
+(ert-deftest komga-reader-test-preload-ahead-no-book-id ()
+  "Test that preload-ahead returns when target buffer has no book-id."
+  (let ((buf (generate-new-buffer " *test-no-book*"))
+        (other-buf (generate-new-buffer " *test-other*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer buf
+            (komga-reader-reader-mode)
+            ;; intentionally leave book-id nil
+            (setq-local komga-reader-reader--chapter-index 0)
+            (setq-local komga-reader-reader--total-chapters 5))
+          (with-current-buffer other-buf
+            (let ((fetched nil))
+              (cl-letf (((symbol-function 'komga-reader-get-chapter)
+                         (lambda (_book-id _href callback)
+                           (setq fetched t)
+                           (funcall callback "html"))))
+                (komga-reader-reader--preload-ahead buf)
+                (should (null fetched))))))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (when (buffer-live-p other-buf) (kill-buffer other-buf)))))
+
+(ert-deftest komga-reader-test-load-chapter-schedules-preload-with-buf ()
+  "Test that load-chapter schedules preload timer with buffer argument."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--book-id "book1")
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--reading-order
+                '((:href "ch0") (:href "ch1")))
+    (setq-local komga-reader-reader--chapter-cache nil)
+    (let ((timer-args nil))
+      (cl-letf (((symbol-function 'run-with-idle-timer)
+                 (lambda (_secs _repeat fn &rest args)
+                   (setq timer-args (cons fn args))
+                   nil))
+                ((symbol-function 'komga-reader-reader--render-html)
+                 (lambda (_html) nil))
+                ((symbol-function 'komga-reader-reader--sync-progression)
+                 (lambda () nil))
+                ((symbol-function 'komga-reader-get-chapter)
+                 (lambda (_book-id _href callback)
+                   (funcall callback "<html>test</html>"))))
+        (komga-reader-reader--load-chapter 0)
+        (should timer-args)
+        (should (eq (car timer-args) #'komga-reader-reader--preload-ahead))
+        ;; The second element should be the buffer
+        (should (bufferp (cadr timer-args)))
+        (should (eq (cadr timer-args) (current-buffer)))))))
+
+(ert-deftest komga-reader-test-next-chapter-schedules-preload-with-buf ()
+  "Test that next-chapter schedules preload timer with buffer argument."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--book-id "book1")
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--reading-order
+                '((:href "ch0") (:href "ch1")))
+    (setq-local komga-reader-reader--chapter-cache nil)
+    (komga-reader-reader--cache-put 1 "<html>cached</html>")
+    (let ((timer-args nil))
+      (cl-letf (((symbol-function 'run-with-idle-timer)
+                 (lambda (_secs _repeat fn &rest args)
+                   (setq timer-args (cons fn args))
+                   nil))
+                ((symbol-function 'komga-reader-reader--render-html)
+                 (lambda (_html) nil))
+                ((symbol-function 'komga-reader-reader--sync-progression)
+                 (lambda () nil)))
+        (komga-reader-reader-next-chapter)
+        (should timer-args)
+        (should (eq (car timer-args) #'komga-reader-reader--preload-ahead))
+        (should (bufferp (cadr timer-args)))
+        (should (eq (cadr timer-args) (current-buffer)))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Device ID / Device Name tests
 ;; ---------------------------------------------------------------------------

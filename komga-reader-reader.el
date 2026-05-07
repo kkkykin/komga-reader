@@ -143,7 +143,8 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
             (komga-reader--debug-log "load-chapter: using cached chapter %d" index)
             (komga-reader-reader--render-html cached)
             (komga-reader-reader--sync-progression)
-            (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead))
+            (komga-reader--debug-log "load-chapter: scheduling preload timer for %s" (buffer-name buf))
+            (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead buf))
         (message "Loading chapter %d..." (1+ index))
         (komga-reader-get-chapter
          komga-reader-reader--book-id href
@@ -152,33 +153,36 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
              (with-current-buffer buf
                (komga-reader--debug-log "load-chapter: fetched chapter %d (%d bytes)" index (length html))
                (komga-reader-reader--render-html html)
-               (komga-reader-reader--sync-progression)
-               (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead)))))))))
+               (komga-reader--debug-log "load-chapter: scheduling preload timer for %s" (buffer-name buf))
+               (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead buf)))))))))
 
-(defun komga-reader-reader--preload-ahead ()
-  "Preload upcoming chapters in background."
-  (when (and komga-reader-reader--book-id
-             (> komga-reader-preload-chapters-count 0))
-    (let ((current komga-reader-reader--chapter-index)
-          (total komga-reader-reader--total-chapters)
-          (buf (current-buffer)))
-      (komga-reader--debug-log "preload-ahead: current=%d count=%d" current komga-reader-preload-chapters-count)
-      (dotimes (i komga-reader-preload-chapters-count)
-        (let ((idx (+ current 1 i)))
-          (when (< idx total)
-            (unless (komga-reader-reader--cache-get idx)
-              (condition-case nil
-                  (let ((chapter (nth idx komga-reader-reader--reading-order)))
-                    (komga-reader--debug-log "preload-ahead: fetching chapter %d" idx)
-                    (komga-reader-get-chapter
-                     komga-reader-reader--book-id
-                     (plist-get chapter :href)
-                     (lambda (html)
-                       (when (buffer-live-p buf)
-                         (with-current-buffer buf
-                           (komga-reader--debug-log "preload-ahead: cached chapter %d (%d bytes)" idx (length html))
-                           (komga-reader-reader--cache-put idx html))))))
-                (error nil)))))))))
+(defun komga-reader-reader--preload-ahead (target-buf)
+  "Preload upcoming chapters in background for buffer TARGET-BUF."
+  (komga-reader--debug-log "preload-ahead: invoked for buffer %s" (buffer-name target-buf))
+  (when (and (buffer-live-p target-buf)
+             (with-current-buffer target-buf
+               (and komga-reader-reader--book-id
+                    (> komga-reader-preload-chapters-count 0))))
+    (with-current-buffer target-buf
+       (let ((current komga-reader-reader--chapter-index)
+             (total komga-reader-reader--total-chapters))
+         (komga-reader--debug-log "preload-ahead: current=%d count=%d" current komga-reader-preload-chapters-count)
+         (dotimes (i komga-reader-preload-chapters-count)
+           (let ((idx (+ current 1 i)))
+             (when (< idx total)
+               (unless (komga-reader-reader--cache-get idx)
+                 (condition-case nil
+                     (let ((chapter (nth idx komga-reader-reader--reading-order)))
+                       (komga-reader--debug-log "preload-ahead: fetching chapter %d" idx)
+                       (komga-reader-get-chapter
+                        komga-reader-reader--book-id
+                        (plist-get chapter :href)
+                        (lambda (html)
+                          (when (buffer-live-p target-buf)
+                            (with-current-buffer target-buf
+                              (komga-reader--debug-log "preload-ahead: cached chapter %d (%d bytes)" idx (length html))
+                              (komga-reader-reader--cache-put idx html))))))
+                   (error nil))))))))))
 
 (defun komga-reader-reader-next-chapter ()
   "Go to next chapter."
@@ -187,14 +191,15 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
     (if (>= next komga-reader-reader--total-chapters)
         (message "Last chapter")
       (komga-reader--debug-log "next-chapter: %d -> %d" komga-reader-reader--chapter-index next)
-      (let ((cached (komga-reader-reader--cache-get next)))
+      (let ((cached (komga-reader-reader--cache-get next))
+            (buf (current-buffer)))
         (if cached
             (progn
               (setq-local komga-reader-reader--chapter-index next)
               (komga-reader-reader--render-html cached)
               (komga-reader-reader--cache-put next nil)
               (komga-reader-reader--sync-progression)
-              (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead))
+              (run-with-idle-timer 0.5 nil #'komga-reader-reader--preload-ahead buf))
           (komga-reader-reader--load-chapter next))))))
 
 (defun komga-reader-reader-prev-chapter ()
