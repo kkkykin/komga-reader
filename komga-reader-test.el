@@ -639,5 +639,50 @@
       (should-error (komga-reader-reader-history-back))
       (should (null komga-reader-reader--history-navigating)))))
 
+;; ---------------------------------------------------------------------------
+;; Image rendering toggle tests (Phase 3)
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-render-images-default-nil ()
+  "Test that komga-reader-render-images defaults to nil."
+  (should (null komga-reader-render-images)))
+
+(ert-deftest komga-reader-test-render-images-is-boolean ()
+  "Test that komga-reader-render-images is a boolean custom variable."
+  (should (booleanp komga-reader-render-images)))
+
+(ert-deftest komga-reader-test-render-html-inhibits-images-when-nil ()
+  "Test that render-html uses image-inhibiting shr settings when render-images is nil."
+  (let ((komga-reader-render-images nil)
+        (shr-settings nil))
+    (cl-letf (((symbol-function 'shr-render-region)
+               (lambda (_beg _end)
+                 (setq shr-settings (list :put-image shr-put-image-function
+                                          :inhibit shr-inhibit-images
+                                          :blocked shr-blocked-images)))))
+      (with-temp-buffer
+        (komga-reader-reader--render-html "<p>test</p>")
+        (should (eq (plist-get shr-settings :put-image)
+                    #'komga-reader-reader--put-image))
+        (should (eq (plist-get shr-settings :inhibit) t))
+        (should (string= (plist-get shr-settings :blocked) "."))))))
+
+(ert-deftest komga-reader-test-render-html-allows-images-when-non-nil ()
+  "Test that render-html uses default shr settings when render-images is non-nil."
+  (let ((komga-reader-render-images t)
+        (shr-settings nil))
+    (cl-letf (((symbol-function 'shr-render-region)
+               (lambda (_beg _end)
+                 (setq shr-settings (list :put-image shr-put-image-function
+                                          :inhibit shr-inhibit-images
+                                          :blocked shr-blocked-images)))))
+      (with-temp-buffer
+        (komga-reader-reader--render-html "<p>test</p>")
+        ;; When render-images is t, we should NOT override shr settings
+        ;; shr-put-image-function should be whatever the default is (not our custom one)
+        (should-not (eq (plist-get shr-settings :put-image)
+                        #'komga-reader-reader--put-image))
+        (should (null (plist-get shr-settings :inhibit)))))))
+
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here

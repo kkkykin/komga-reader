@@ -29,6 +29,12 @@ Set to 0 to disable preloading."
   :type 'integer
   :group 'komga-reader)
 
+(defcustom komga-reader-render-images nil
+  "When non-nil, render images in chapter HTML.
+When nil (default), images are suppressed for a clean reading experience."
+  :type 'boolean
+  :group 'komga-reader)
+
 (defvar-local komga-reader-reader--book-id nil)
 (defvar-local komga-reader-reader--manifest nil)
 (defvar-local komga-reader-reader--chapter-index 0)
@@ -99,14 +105,17 @@ Returns nil if no match found."
   "Ignore images.")
 
 (defun komga-reader-reader--render-html (html)
-  "Render HTML string in current buffer."
+  "Render HTML string in current buffer.
+When `komga-reader-render-images' is nil, images are suppressed."
   (let ((inhibit-read-only t))
     (erase-buffer)
     (insert html)
-    (let ((shr-put-image-function #'komga-reader-reader--put-image)
-          (shr-inhibit-images t)
-          (shr-blocked-images "."))
-      (shr-render-region (point-min) (point-max)))
+    (if komga-reader-render-images
+        (shr-render-region (point-min) (point-max))
+      (let ((shr-put-image-function #'komga-reader-reader--put-image)
+            (shr-inhibit-images t)
+            (shr-blocked-images "."))
+        (shr-render-region (point-min) (point-max))))
     (goto-char (point-min))))
 
 (defun komga-reader-reader-open (book-id manifest &optional chapter-index)
