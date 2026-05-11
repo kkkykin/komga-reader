@@ -487,5 +487,32 @@
             (sleep-for 0.05)))
         (should (= loaded-index 0))))))
 
+;; ---------------------------------------------------------------------------
+;; quit-window-hook tests (Phase 1)
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-reader-q-bound-to-quit-window ()
+  "Test that q is bound to quit-window in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "q"))
+              #'quit-window)))
+
+(ert-deftest komga-reader-test-reader-quit-removed ()
+  "Test that komga-reader-reader-quit no longer exists."
+  (should-not (fboundp 'komga-reader-reader-quit)))
+
+(ert-deftest komga-reader-test-reader-quit-window-hook-has-sync ()
+  "Test that quit-window-hook contains sync-progression in reader buffer."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (should (memq #'komga-reader-reader--sync-progression quit-window-hook))))
+
+(ert-deftest komga-reader-test-reader-quit-window-hook-is-buffer-local ()
+  "Test that quit-window-hook sync entry is buffer-local."
+  (let ((global-hook (default-value 'quit-window-hook)))
+    (with-temp-buffer
+      (komga-reader-reader-mode)
+      (should-not (memq #'komga-reader-reader--sync-progression global-hook))
+      (should (memq #'komga-reader-reader--sync-progression quit-window-hook)))))
+
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here

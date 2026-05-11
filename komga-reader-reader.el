@@ -73,7 +73,7 @@ Returns nil if no match found."
     (define-key map (kbd "<right>") #'komga-reader-reader-next-chapter)
     (define-key map (kbd "<left>") #'komga-reader-reader-prev-chapter)
     (define-key map (kbd "t") #'komga-reader-reader-open-toc)
-    (define-key map (kbd "q") #'komga-reader-reader-quit)
+    (define-key map (kbd "q") #'quit-window)
     map))
 
 (define-derived-mode komga-reader-reader-mode special-mode "Komga-Reader"
@@ -81,7 +81,8 @@ Returns nil if no match found."
   (setq truncate-lines t)
   (buffer-disable-undo)
   (setq buffer-read-only t)
-  (setq-local revert-buffer-function #'komga-reader-reader--refresh))
+  (setq-local revert-buffer-function #'komga-reader-reader--refresh)
+  (add-hook 'quit-window-hook #'komga-reader-reader--sync-progression nil t))
 
 (defun komga-reader-reader--put-image (_spec _alt _flags)
   "Ignore images.")
@@ -224,12 +225,6 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
        komga-reader-reader--chapter-index
        href
        (lambda (_status _body) nil)))))
-
-(defun komga-reader-reader-quit ()
-  "Quit reader and sync progression."
-  (interactive)
-  (komga-reader-reader--sync-progression)
-  (quit-window))
 
 (defun komga-reader-reader--refresh (_ignore-auto _noconfirm)
   "Refresh the reader by fetching the latest progression from server.
