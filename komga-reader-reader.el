@@ -36,6 +36,15 @@ Set to 0 to disable preloading."
 (defvar-local komga-reader-reader--chapter-cache nil)
 (defvar-local komga-reader-reader--reading-order nil)
 
+(defvar-local komga-reader-reader--history-back nil
+  "Stack of previously visited chapter indices for history-back navigation.")
+
+(defvar-local komga-reader-reader--history-forward nil
+  "Stack of chapter indices for history-forward navigation.")
+
+(defvar-local komga-reader-reader--history-navigating nil
+  "Non-nil when navigating via history to suppress history push.")
+
 (defun komga-reader-reader--cache-get (index)
   "Get cached HTML for chapter INDEX, or nil."
   (cdr (assoc index komga-reader-reader--chapter-cache)))
@@ -73,6 +82,8 @@ Returns nil if no match found."
     (define-key map (kbd "<right>") #'komga-reader-reader-next-chapter)
     (define-key map (kbd "<left>") #'komga-reader-reader-prev-chapter)
     (define-key map (kbd "t") #'komga-reader-reader-open-toc)
+    (define-key map (kbd "l") #'komga-reader-reader-history-back)
+    (define-key map (kbd "r") #'komga-reader-reader-history-forward)
     (define-key map (kbd "q") #'quit-window)
     map))
 
@@ -130,10 +141,21 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
                (setq chapter-index saved-index))
              (komga-reader-reader--load-chapter chapter-index)))))))))
 
+(defun komga-reader-reader--history-push ()
+  "Push current chapter onto the back-history stack.
+Clears forward-history.  Skipped when `komga-reader-reader--history-navigating' is set."
+  (unless komga-reader-reader--history-navigating
+    (when (and komga-reader-reader--chapter-index
+               (> komga-reader-reader--total-chapters 0))
+      (push komga-reader-reader--chapter-index
+            komga-reader-reader--history-back)
+      (setq komga-reader-reader--history-forward nil))))
+
 (defun komga-reader-reader--load-chapter (index)
   "Load chapter at INDEX."
   (when (and (>= index 0) (< index komga-reader-reader--total-chapters))
     (komga-reader--debug-log "load-chapter index=%d (total=%d)" index komga-reader-reader--total-chapters)
+    (komga-reader-reader--history-push)
     (setq-local komga-reader-reader--chapter-index index)
     (let* ((chapter (nth index komga-reader-reader--reading-order))
            (href (plist-get chapter :href))
@@ -196,6 +218,7 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
             (buf (current-buffer)))
         (if cached
             (progn
+              (komga-reader-reader--history-push)
               (setq-local komga-reader-reader--chapter-index next)
               (komga-reader-reader--render-html cached)
               (komga-reader-reader--cache-put next nil)
@@ -268,6 +291,32 @@ Otherwise, reload the current chapter."
   (when komga-reader-reader--book-id
     (komga-reader--open-toc komga-reader-reader--book-id
                             komga-reader-reader--chapter-index)))
+
+(defun komga-reader-reader-history-back ()
+  "Go back to the previous chapter in reading history."
+  (interactive)
+  (if (null komga-reader-reader--history-back)
+      (message "No more history")
+    (push komga-reader-reader--chapter-index
+          komga-reader-reader--history-forward)
+    (let ((prev (pop komga-reader-reader--history-back)))
+      (setq komga-reader-reader--history-navigating t)
+      (unwind-protect
+          (komga-reader-reader--load-chapter prev)
+        (setq komga-reader-reader--history-navigating nil)))))
+
+(defun komga-reader-reader-history-forward ()
+  "Go forward to the next chapter in reading history."
+  (interactive)
+  (if (null komga-reader-reader--history-forward)
+      (message "No forward history")
+    (push komga-reader-reader--chapter-index
+          komga-reader-reader--history-back)
+    (let ((next (pop komga-reader-reader--history-forward)))
+      (setq komga-reader-reader--history-navigating t)
+      (unwind-protect
+          (komga-reader-reader--load-chapter next)
+        (setq komga-reader-reader--history-navigating nil)))))
 
 (provide 'komga-reader-reader)
 ;;; komga-reader-reader.el ends here

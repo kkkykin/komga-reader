@@ -514,5 +514,130 @@
       (should-not (memq #'komga-reader-reader--sync-progression global-hook))
       (should (memq #'komga-reader-reader--sync-progression quit-window-hook)))))
 
+;; ---------------------------------------------------------------------------
+;; Reading history tests (Phase 2)
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-reader-l-bound-to-history-back ()
+  "Test that l is bound to history-back in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "l"))
+              #'komga-reader-reader-history-back)))
+
+(ert-deftest komga-reader-test-reader-r-bound-to-history-forward ()
+  "Test that r is bound to history-forward in reader mode."
+  (should (eq (lookup-key komga-reader-reader-mode-map (kbd "r"))
+              #'komga-reader-reader-history-forward)))
+
+(ert-deftest komga-reader-test-history-push-basic ()
+  "Test that history push adds current chapter to back stack."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (komga-reader-reader--history-push)
+    (should (equal komga-reader-reader--history-back '(0)))
+    (should (null komga-reader-reader--history-forward))))
+
+(ert-deftest komga-reader-test-history-push-clears-forward ()
+  "Test that history push clears forward stack."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 2)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--history-forward '(4 5))
+    (komga-reader-reader--history-push)
+    (should (equal komga-reader-reader--history-back '(2)))
+    (should (null komga-reader-reader--history-forward))))
+
+(ert-deftest komga-reader-test-history-push-skipped-when-navigating ()
+  "Test that history push is skipped when navigating flag is set."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 3)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--history-navigating t)
+    (komga-reader-reader--history-push)
+    (should (null komga-reader-reader--history-back))))
+
+(ert-deftest komga-reader-test-history-push-skipped-when-no-chapter ()
+  "Test that history push is skipped when total-chapters is 0."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--total-chapters 0)
+    (komga-reader-reader--history-push)
+    (should (null komga-reader-reader--history-back))))
+
+(ert-deftest komga-reader-test-history-back-navigates ()
+  "Test that history-back loads the previous chapter."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--book-id "book1")
+    (setq-local komga-reader-reader--chapter-index 3)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--reading-order
+                '((:href "ch0") (:href "ch1") (:href "ch2") (:href "ch3") (:href "ch4")))
+    (setq-local komga-reader-reader--history-back '(1 2))
+    (setq-local komga-reader-reader--history-forward nil)
+    (let ((loaded-index nil))
+      (cl-letf (((symbol-function 'komga-reader-reader--load-chapter)
+                 (lambda (index)
+                   (setq loaded-index index))))
+        (komga-reader-reader-history-back)
+        (should (= loaded-index 1))
+        (should (equal komga-reader-reader--history-back '(2)))
+        (should (equal komga-reader-reader--history-forward '(3)))))))
+
+(ert-deftest komga-reader-test-history-back-empty ()
+  "Test that history-back shows message when stack is empty."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--history-back nil)
+    ;; Should not error, just message
+    (komga-reader-reader-history-back)))
+
+(ert-deftest komga-reader-test-history-forward-navigates ()
+  "Test that history-forward loads the next chapter."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--book-id "book1")
+    (setq-local komga-reader-reader--chapter-index 1)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--reading-order
+                '((:href "ch0") (:href "ch1") (:href "ch2") (:href "ch3") (:href "ch4")))
+    (setq-local komga-reader-reader--history-back '(0))
+    (setq-local komga-reader-reader--history-forward '(3))
+    (let ((loaded-index nil))
+      (cl-letf (((symbol-function 'komga-reader-reader--load-chapter)
+                 (lambda (index)
+                   (setq loaded-index index))))
+        (komga-reader-reader-history-forward)
+        (should (= loaded-index 3))
+        (should (equal komga-reader-reader--history-back '(1 0)))
+        (should (null komga-reader-reader--history-forward))))))
+
+(ert-deftest komga-reader-test-history-forward-empty ()
+  "Test that history-forward shows message when stack is empty."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--chapter-index 0)
+    (setq-local komga-reader-reader--history-forward nil)
+    ;; Should not error, just message
+    (komga-reader-reader-history-forward)))
+
+(ert-deftest komga-reader-test-history-navigating-flag-cleared-after-error ()
+  "Test that navigating flag is cleared even if load-chapter errors."
+  (with-temp-buffer
+    (komga-reader-reader-mode)
+    (setq-local komga-reader-reader--book-id "book1")
+    (setq-local komga-reader-reader--chapter-index 2)
+    (setq-local komga-reader-reader--total-chapters 5)
+    (setq-local komga-reader-reader--history-back '(0))
+    (cl-letf (((symbol-function 'komga-reader-reader--load-chapter)
+               (lambda (_index) (error "simulated error"))))
+      (should-error (komga-reader-reader-history-back))
+      (should (null komga-reader-reader--history-navigating)))))
+
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here
