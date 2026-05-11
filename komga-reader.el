@@ -240,9 +240,19 @@ Set to 0 to disable caching."
 (defun komga-reader--toc-select (button)
   (let* ((book-id (button-get button 'book-id))
          (chapter-index (button-get button 'chapter-index))
-         (manifest (buffer-local-value 'komga-reader--toc-manifest (current-buffer))))
+         (manifest (buffer-local-value 'komga-reader--toc-manifest (current-buffer)))
+         (existing-buf nil))
     (require 'komga-reader-reader)
-    (komga-reader-reader-open book-id manifest chapter-index)))
+    ;; Try to find an existing reader buffer for this book
+    (dolist (buf (buffer-list))
+      (when (and (eq (buffer-local-value 'major-mode buf) 'komga-reader-reader-mode)
+                 (equal (buffer-local-value 'komga-reader-reader--book-id buf) book-id))
+        (setq existing-buf buf)))
+    (if existing-buf
+        (progn
+          (pop-to-buffer existing-buf)
+          (komga-reader-reader--load-chapter chapter-index))
+      (komga-reader-reader-open book-id manifest chapter-index))))
 
 ;;;###autoload
 (defun komga-reader-resume ()

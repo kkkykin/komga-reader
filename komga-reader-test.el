@@ -684,5 +684,66 @@
                         #'komga-reader-reader--put-image))
         (should (null (plist-get shr-settings :inhibit)))))))
 
+;; ---------------------------------------------------------------------------
+;; TOC select with existing reader buffer tests
+;; ---------------------------------------------------------------------------
+
+(ert-deftest komga-reader-test-toc-select-with-reader-buffer-uses-load-chapter ()
+  "When an existing reader buffer matches the book, toc-select calls load-chapter."
+  (let* ((reader-buf (generate-new-buffer "*test-reader*"))
+         (loaded-index nil)
+         (open-called nil))
+    (unwind-protect
+        (progn
+          ;; Setup existing reader buffer
+          (with-current-buffer reader-buf
+            (komga-reader-reader-mode)
+            (setq-local komga-reader-reader--book-id "book1"))
+          ;; Run test from a simulated TOC buffer
+          (with-temp-buffer
+            (insert "ab")
+            (setq-local komga-reader--toc-manifest '(:fake manifest))
+            (let ((button (make-text-button 1 2
+                                            'book-id "book1"
+                                            'chapter-index 2)))
+              (cl-letf (((symbol-function 'komga-reader-reader--load-chapter)
+                         (lambda (index) (setq loaded-index index)))
+                        ((symbol-function 'komga-reader-reader-open)
+                         (lambda (&rest _args) (setq open-called t)))
+                        ((symbol-function 'pop-to-buffer)
+                         (lambda (buf) (current-buffer))))
+                (komga-reader--toc-select button))))
+          (should (= loaded-index 2))
+          (should-not open-called))
+      (kill-buffer reader-buf))))
+
+(ert-deftest komga-reader-test-toc-select-without-reader-buffer-uses-reader-open ()
+  "When no reader buffer matches the book, toc-select falls back to reader-open."
+  (let ((open-called nil)
+        (open-book nil)
+        (open-index nil))
+    ;; Ensure no reader buffer exists for "book2"
+    (dolist (buf (buffer-list))
+      (when (and (eq (buffer-local-value 'major-mode buf) 'komga-reader-reader-mode)
+                 (equal (buffer-local-value 'komga-reader-reader--book-id buf) "book2"))
+        (kill-buffer buf)))
+    (with-temp-buffer
+      (insert "ab")
+      (setq-local komga-reader--toc-manifest '(:fake manifest))
+      (let ((button (make-text-button 1 2
+                                      'book-id "book2"
+                                      'chapter-index 1)))
+        (cl-letf (((symbol-function 'komga-reader-reader--load-chapter)
+                   (lambda (&rest _args) (error "load-chapter should not be called")))
+                  ((symbol-function 'komga-reader-reader-open)
+                   (lambda (book-id _manifest &optional chapter-index)
+                     (setq open-called t
+                           open-book book-id
+                           open-index chapter-index))))
+          (komga-reader--toc-select button)))
+      (should open-called)
+      (should (equal open-book "book2"))
+      (should (= open-index 1)))))
+
 (provide 'komga-reader-test)
 ;;; komga-reader-test.el ends here
