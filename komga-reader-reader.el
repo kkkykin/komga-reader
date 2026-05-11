@@ -120,7 +120,8 @@ When `komga-reader-render-images' is nil, images are suppressed."
 
 (defun komga-reader-reader-open (book-id manifest &optional chapter-index)
   "Open BOOK-ID at CHAPTER-INDEX (default 0).
-If CHAPTER-INDEX is nil and a progression is saved on the server, resume from that position."
+If CHAPTER-INDEX is nil and a progression is saved on
+the server, resume from that position."
   (let ((resume-from-server (null chapter-index)))
     (setq chapter-index (or chapter-index 0))
   (komga-reader--debug-log "reader-open book-id=%s chapter-index=%s" book-id chapter-index)
@@ -152,7 +153,7 @@ If CHAPTER-INDEX is nil and a progression is saved on the server, resume from th
 
 (defun komga-reader-reader--history-push ()
   "Push current chapter onto the back-history stack.
-Clears forward-history.  Skipped when `komga-reader-reader--history-navigating' is set."
+Clears forward-history.  Skipped when navigating."
   (unless komga-reader-reader--history-navigating
     (when (and komga-reader-reader--chapter-index
                (> komga-reader-reader--total-chapters 0))
